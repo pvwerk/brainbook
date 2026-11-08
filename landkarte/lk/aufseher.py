@@ -18,7 +18,7 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
-from . import buch, chronik, konfig, pruefer
+from . import buch, chronik, konfig, pruefer, testleser
 
 WERKSTATT = konfig.LK_HEIM / "WERKSTATT.md"
 BEFUND_JSON = konfig.LK_HEIM / "befund.json"
@@ -208,6 +208,7 @@ def befund(zurueck: int = 30) -> dict:
         "schreiberstreit": {"einstimmig": einstimmig, "uneinig": uneinig,
                             "nur_einer": einzeln},
         "abweichungen": pruefer.abweichungen_auswerten(),
+        "testleser": testleser.bilanz(),
     }
 
 
@@ -221,6 +222,11 @@ auffällig oft nachgebessert wurden, und ob die Verarbeitungskette läuft.
 
 Deine Aufgabe: aus den Zahlen benannte Schwachstellen und konkrete Vorschläge \
 machen. Du änderst nichts, du schlägst vor.
+
+Beachte ausserdem TESTLESER: dort steht, wie oft eine Frage, die zu einem \
+Kapitel fuehren MUESSTE, ins Leere lief. Eine niedrige Trefferquote heisst \
+nicht, dass die Kapitel schlecht sind, sondern dass das Inhaltsverzeichnis \
+nicht zum Finden taugt.
 
 Beachte besonders den Abschnitt ABWEICHUNGEN: dort steht, wo die beiden \
 unabhängigen Schreiber auseinandergingen. Eine Häufung ist keine Schuld eines \
@@ -426,6 +432,24 @@ def messwerte_text(d: dict) -> str:
         z.append(f"  >>> POSITIONSVORLIEBE: {round(s['anteil_erste']*100)} % der "
                  f"{s['entschieden']} Entscheidungen gingen an die erste Fassung. "
                  f"{s['befund']}")
+    z.append("")
+    tl = d.get("testleser") or {}
+    z.append("TESTLESER - Rueckwaertssuche: er kennt die Antwort und sucht "
+             "die Frage.")
+    if tl.get("lesungen"):
+        quote = tl.get("trefferquote")
+        z.append(f"  {tl['lesungen']} Lesungen, {tl['begriffe']} Fragen geprueft, "
+                 f"{tl['blind']} liefen ins Leere, {tl['geheilt']} davon "
+                 f"nachweislich geheilt")
+        if quote is not None:
+            z.append(f"  Trefferquote des Verzeichnisses: {round(quote*100)} %"
+                     + ("  >>> VERDACHT: Verzeichnis taugt nicht zum Finden"
+                        if quote < 0.6 else ""))
+        for v in tl.get("offene_vorschlaege", [])[:10]:
+            z.append(f"    offen [{v['schwere']}] {v.get('kapitel')}: "
+                     f"{v['befund']}")
+    else:
+        z.append("  noch keine Lesung")
     z.append("")
     z.append("REGELN, DIE MEHRFACH NOETIG WAREN:")
     if d["regeln_hochziehen"]:

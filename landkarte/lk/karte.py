@@ -143,6 +143,9 @@ def bauen(wurzel: Path, modell: dict | None = None,
 
     notiz = notizen.laden(wurzel)
     kapitel = buch.kapitel_sammeln(wurzel)
+    # spaet eingebunden: der Testleser bindet umgekehrt diese Datei ein
+    from . import testleser as _tl
+    schlagworte = _tl.schlagworte_laden(wurzel)
 
     # Fallen und Regeln: aus Notizen und aus allen Kapiteln zusammenziehen
     fallen = list(notiz.get("Fallen", []))
@@ -252,6 +255,15 @@ def bauen(wurzel: Path, modell: dict | None = None,
              for k in kapitel[:25]],
             ("Kapitel", "Inhalt"))
         z.append("")
+        if schlagworte:
+            z.append("**Schlagworte zu den Kapiteln** — vom Testleser "
+                     "nachgetragen, weil das Kapitel ohne sie nicht gefunden "
+                     "wurde (`.landkarte/schlagworte.md`)")
+            z.append("")
+            for datei, begriffe in schlagworte.items():
+                if begriffe:
+                    z.append(f"- `{datei}`: " + ", ".join(begriffe))
+            z.append("")
 
     # ----------------------------------------------------------- Wo liegt was
     z.append("## Wo liegt was")
@@ -327,6 +339,10 @@ def bauen(wurzel: Path, modell: dict | None = None,
         "anzahl_zeilen": modell["anzahl_zeilen"], "git": modell["git"],
         "befehle": modell["befehle"], "adressen": modell["adressen"],
         "kapitel": len(kapitel), "fallen": len(fallen),
+        "schlagworte": [
+            {"kapitel_pfad": str(buch.buchordner(wurzel) / datei),
+             "kapiteldatei": datei, "begriffe": begriffe}
+            for datei, begriffe in schlagworte.items() if begriffe],
         "dateien": [{"pfad": d["pfad"], "zweck": d["zweck"],
                      "rang": d.get("rang", 0),
                      "symbole": [{"zeile": s["zeile"], "art": s["art"],

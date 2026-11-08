@@ -75,6 +75,14 @@ def finden(begriff: str, projekt: str | None = None,
             if muster.search(b["wie"]) or muster.search(b["was"]):
                 treffer.append({"punkte": 65, "art": "Befehl", "projekt": name,
                                 "ort": wurzel, "text": f"{b['wie']}  ({b['was']})"})
+        for eintrag in pr.get("schlagworte", []):
+            for begriff in eintrag.get("begriffe", []):
+                if muster.search(begriff) or genau.search(begriff):
+                    treffer.append({"punkte": 78, "art": "Schlagwort",
+                                    "projekt": name,
+                                    "ort": eintrag["kapitel_pfad"],
+                                    "text": f"{begriff} → "
+                                            f"{eintrag['kapiteldatei']}"})
         for a in pr.get("adressen", []):
             if muster.search(a):
                 treffer.append({"punkte": 65, "art": "Adresse", "projekt": name,

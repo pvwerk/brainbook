@@ -8,7 +8,7 @@
   <array>
     <string>/bin/sh</string>
     <string>-lc</string>
-    <string>LANDKARTE/bin/landkarte nachtragen --tage 7 &amp;&amp; LANDKARTE/bin/landkarte regal</string>
+    <string>LANDKARTE/bin/landkarte nachtragen --tage 7; LANDKARTE/bin/landkarte regal; LANDKARTE/bin/landkarte lesung --anzahl 3</string>
   </array>
   <key>StartCalendarInterval</key>
   <dict>

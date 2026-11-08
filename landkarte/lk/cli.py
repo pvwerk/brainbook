@@ -14,7 +14,7 @@ from pathlib import Path
 from . import aufseher, buch, chronik, digest, karte, konfig, mindmap, notizen
 from . import korrektur, nachtrag, pruefer, regalwart, register, scan
 from . import schwaerzen as _schw
-from . import suche
+from . import suche, testleser
 
 
 def projektwurzel(pfad: str | None = None) -> Path:
@@ -294,6 +294,51 @@ def befehl_korrigieren(args) -> int:
     if (wurzel / "KARTE.md").exists():
         karte.bauen(wurzel)
         print("KARTE.md neu gesetzt — der falsche Satz ist jetzt durchgestrichen")
+    return 0
+
+
+def befehl_lesung(args) -> int:
+    """Testleser: Kapitel lesen, Verzeichnis daran messen, Belegbares richten."""
+    if args.bilanz:
+        b = testleser.bilanz(args.tage)
+        if not b.get("lesungen"):
+            print("Noch keine Lesung. → landkarte lesung")
+            return 1
+        print(f"{b['lesungen']} Lesungen, {b['begriffe']} Suchbegriffe geprüft")
+        print(f"  {b['blind']} Begriffe fanden das Kapitel nicht "
+              f"({b['geheilt']} davon nachweislich geheilt)")
+        if b.get("trefferquote") is not None:
+            print(f"  Trefferquote des Verzeichnisses: "
+                  f"{round(b['trefferquote']*100)} %")
+        if b.get("offene_vorschlaege"):
+            print("\n  Offene Vorschläge (nicht selbst ausgeführt):")
+            for v in b["offene_vorschlaege"]:
+                print(f"    [{v['schwere']}] {v['kapitel']}: {v['befund']}")
+        return 0
+
+    ergebnisse = testleser.runde(args.anzahl, args.modell, args.trocken)
+    if not ergebnisse:
+        print("Keine Kapitel vorhanden. → landkarte kapitel --faellig")
+        return 1
+    for e in ergebnisse:
+        if not e.get("ok"):
+            print(f"  ✗ {e.get('grund')}", file=sys.stderr)
+            continue
+        if e.get("trocken"):
+            print(f"  (trocken) Anfrage {e['zeichen']} Zeichen")
+            continue
+        print(f"gelesen: {Path(e['kapitel']).name}  "
+              f"[{Path(e['projekt']).name}]")
+        print(f"  Suchbegriffe: {', '.join(e['begriffe'])}")
+        gefunden = len(e["begriffe"]) - len(e["blind_vorher"])
+        print(f"  Verzeichnis fand {gefunden} von {len(e['begriffe'])}")
+        for k in e.get("korrekturen", []):
+            print(f"  korrigiert: {k['getan']}")
+        for v in e.get("vorschlaege", []):
+            print(f"  VORSCHLAG [{v['schwere']}]: {v['befund']}")
+        if e.get("vermutetes_projekt"):
+            print(f"  Inhalt deutet auf: {e['vermutetes_projekt']} "
+                  f"({e.get('begruendung','')})")
     return 0
 
 
@@ -745,6 +790,17 @@ def zerleger() -> argparse.ArgumentParser:
     s.add_argument("--grund")
     s.add_argument("--projekt")
     s.set_defaults(fn=befehl_korrigieren)
+
+    s = u.add_parser("lesung", aliases=["testleser"],
+                     help="Kapitel stichprobenartig lesen und das "
+                          "Verzeichnis daran messen")
+    s.add_argument("--anzahl", type=int, default=1)
+    s.add_argument("--modell")
+    s.add_argument("--trocken", action="store_true")
+    s.add_argument("--bilanz", action="store_true",
+                   help="gemessene Trefferquote des Verzeichnisses")
+    s.add_argument("--tage", type=int, default=120)
+    s.set_defaults(fn=befehl_lesung)
 
     s = u.add_parser("protokoll",
                      help="Spruchbuch des Schiedsrichters lesen")

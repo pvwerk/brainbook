@@ -14,6 +14,7 @@ fünf Rollen, von denen nur zwei ein Sprachmodell brauchen:
 | Schreiber | macht aus einer Sitzung ein Buchkapitel | 2 unabhängige Agenten + Schiedsrichter |
 | Setzer | baut `KARTE.md` je Projekt | Skript |
 | Bibliothekar | baut das Regal, sortiert nach echter Nutzung | Skript |
+| Testleser | Rückwärtssuche: kennt die Antwort, sucht die Frage | Skript + Agent, nächtlich |
 | Aufseher | findet Muster und Schwachstellen, schlägt vor | Skript + Agent, wöchentlich |
 
 ## Zuerst nachsehen, dann lesen
@@ -84,6 +85,8 @@ landkarte abweichungen    # Strichliste: wo die beiden Schreiber auseinandergehe
 landkarte protokoll       # Spruchbuch des Schiedsrichters, nach Protokollfassung
 landkarte regale          # Regalbeschriftung: Gruppen, Aliase, Verwechslungsgefahr
 landkarte schwaerzen      # Zugangsdaten aus der Chronik entfernen
+landkarte lesung          # Testleser auf eine Stichprobe
+landkarte lesung --bilanz # gemessene Trefferquote des Verzeichnisses
 landkarte aufsicht        # vollständiger Werkstattbericht (nutzt ein Modell)
 landkarte mindmap --oeffnen
 ```
@@ -99,6 +102,14 @@ oder am Protokoll:
 - viele `fehldeutung` → fehlendes Feld in `hooks/chronist.sh` nachrüsten
 - `Positionsvorliebe` gemeldet → schwerer Befund, die Reihenfolge wird zufällig
   vertauscht, also kann eine Schieflage keine Wahrheit sein
+
+### Wenn die Trefferquote des Testlesers fällt
+
+Er nimmt ein Kapitel, lässt sich Suchbegriffe dazu geben und prüft, ob das
+Verzeichnis sie beantwortet. Eine niedrige Quote heißt **nicht**, dass die
+Kapitel schlecht sind, sondern dass das Verzeichnis nicht zum Finden taugt.
+Offene Vorschläge stehen im Regal-Journal und in `landkarte lesung --bilanz`.
+Er ändert nie einen Kapiteltext — das ist Beweismittel des Schiedsrichters.
 
 ## Grenzen, die du kennen musst
 

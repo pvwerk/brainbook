@@ -16,7 +16,46 @@ Es steht in keiner Datei, weil es nur beim Arbeiten entsteht.
 | **Setzer** | baut `KARTE.md` je Projekt | Skript, < 1 s | bei Bedarf |
 | **Regalwart** | beschriftet und gruppiert die Regale, erkennt neue, warnt vor Verwechslung | Skript | mit dem Regal |
 | **Bibliothekar** | baut das Regal, sortiert nach echter Nutzung | Skript | nächtlich |
+| **Testleser** | Rückwärtssuche: kennt die Antwort, sucht die Frage | Skript + Agent | nächtlich, stichprobenartig |
 | **Aufseher** | findet Muster, benennt Schwachstellen, schlägt vor | Skript + Agent | wöchentlich |
+
+## Der Testleser — Rückwärtssuche
+
+Er nimmt stichprobenartig ein Kapitel, liest es ganz, und prüft, ob das
+Verzeichnis darauf schließen lässt, was darin steht. Er **kennt die Antwort
+und sucht die Frage.**
+
+Der entscheidende Griff: das Modell wird nicht gefragt, ob das Verzeichnis gut
+ist — das wäre eine Meinung. Es sagt nur, *wonach jemand suchen würde*, um
+dieses Kapitel wiederzufinden. Dann schlägt das Verzeichnis wirklich nach:
+
+```
+landkarte lesung
+  NEIN  Eturnity-Auslegung                 0 Treffer
+  ja    print_helper.py                    4 Treffer (direkt aufs Kapitel)
+  ja    user:mcp_servers                   1 Treffer (direkt aufs Kapitel)
+  NEIN  Dymo-Etikettendruck                0 Treffer
+  → 2 Begriffe ergänzt, 2 davon nachweislich jetzt auffindbar
+```
+
+Eine Frage, die ins Leere läuft, ist ein **Beweis**, keine Einschätzung. Und
+nach der Korrektur wird dieselbe Frage erneut gestellt — findet sie jetzt, ist
+die Korrektur belegt. `landkarte lesung --bilanz` zeigt die gemessene
+Trefferquote des Verzeichnisses.
+
+### Was er selbst richtet und was nicht
+
+| Befund | Umgang | Warum |
+|---|---|---|
+| Schlagworte fehlen | trägt er nach | nur ergänzend, rückbaubar, Wirkung messbar |
+| Regal falsch beschriftet, Alias fehlt | trägt er nach | reines Etikett, keine Inhalte |
+| Buch im **falschen Regal** | nur bei eindeutigem Befund (≥ 80 % der Dateien), sonst Vorschlag im Journal | ändert zwei Projekte |
+| Kapiteltext falsch | **nie** | das Kapitel ist Beweismittel des Schiedsrichters |
+
+Einen Alias übernimmt er nur, wenn er keinem anderen Regal gehört — sonst
+entstünde genau die Verwechslung, die er verhindern soll. Maschinelle
+Schlagworte stehen in `.landkarte/schlagworte.md`; `notizen.md` bleibt dem
+Menschen.
 
 ## Drei Listen
 
@@ -102,6 +141,8 @@ landkarte aufsicht [--ohne-modell] [--einfach] [--zeigen]
 landkarte wo <begriff>               # dreistufig: Regal, Fach, Inhalt
 landkarte regale [--faecher] [--journal]
 
+landkarte lesung [--anzahl 3]        # Testleser: Rückwärtssuche auf Stichproben
+landkarte lesung --bilanz            # gemessene Trefferquote des Verzeichnisses
 landkarte protokoll [--ausfuehrlich] # Spruchbuch des Schiedsrichters
 landkarte nachtragen [--tage 365]    # Chronik rückwirkend aus Sitzungsprotokollen
 landkarte schwaerzen [--probe]       # Zugangsdaten aus der Chronik entfernen
@@ -119,7 +160,9 @@ landkarte status
   konfig.json            Wurzeln, Ignorierliste, Modelle, Zwillingsschalter
   chronik/YYYY-MM-DD.jsonl   Rohprotokoll — nur angehängt, nie verändert
   sitzungen/<id>.json    welche Sitzung schon ein Kapitel hat
-  pruefung/<id>.md       Schiedsspruch samt beiden Originalfassungen
+  pruefung/<sitzung>/<zeit>.md  Schiedsspruch je Lauf, nie überschrieben
+  pruefung/protokoll.jsonl  Spruchbuch mit Fingerabdruck der Protokollfassung
+  lesungen.jsonl         jede Lesung samt Messung vorher und nachher
   abweichungen.jsonl     Strichliste der Abweichungsarten
   projekte/<slug>.json   Suchindex je Projekt
   register.json          das Regal, maschinenlesbar
@@ -130,6 +173,7 @@ landkarte status
 <projekt>/.landkarte/notizen.md    handgepflegt, wird nie überschrieben
 <projekt>/.landkarte/buch/*.md     die Kapitel
 <projekt>/.landkarte/korrekturen.jsonl  Berichtigungen
+<projekt>/.landkarte/schlagworte.md vom Testleser nachgetragene Suchbegriffe
 <projekt>/.landkarte/symbole.md    vollständige Symbolliste
 <projekt>/.landkarte/karte.json    Scan-Modell
 <projekt>/.landkarte/mindmap.html  Mindmap
