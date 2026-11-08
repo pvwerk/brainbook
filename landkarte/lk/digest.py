@@ -11,7 +11,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from . import buch, chronik, konfig, korrektur, notizen, regalwart
+from . import brainbook, buch, chronik, konfig, korrektur, notizen
+from . import regalwart
 
 GRENZE = 7500
 
@@ -125,6 +126,13 @@ def bauen(wurzel: Path) -> str:
         z.append(f"BUCH: {len(kapitel)} Kapitel in .landkarte/buch/ — zuletzt "
                  f"\"{kapitel[0]['kopf'].get('titel','?')}\" "
                  f"({kapitel[0]['kopf'].get('datum','?')})")
+        z.append("")
+
+    stichworte = brainbook.stichworte()
+    if stichworte:
+        z.append("BRAINBOOK (Jans Stichworte, liegt am Tresen in keinem Regal) — "
+                 "bei einem dieser Worte zuerst `landkarte brainbook \"<wort>\"`:")
+        z.append("  " + " · ".join(stichworte[:40]))
         z.append("")
 
     z.append("Mehr: KARTE.md (Inhaltsverzeichnis) · .landkarte/symbole.md "

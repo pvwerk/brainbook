@@ -676,6 +676,40 @@ def karte_zusicherungen(wurzel: Path) -> list[dict]:
     return maengel
 
 
+def brainbook_zusicherungen() -> list[dict]:
+    """Das Brainbook enthaelt nur Verweise - keine Geheimnisse, keine toten Pfade."""
+    from . import brainbook
+    maengel: list[dict] = []
+    if not brainbook.BUCH.exists():
+        return maengel
+    try:
+        inhalt = brainbook.BUCH.read_text("utf-8")
+    except OSError:
+        return maengel
+    for nummer, zeile in enumerate(inhalt.splitlines(), 1):
+        verdacht = geheimnisverdacht(zeile)
+        if verdacht:
+            maengel.append({"schwere": "schwer",
+                            "befund": f"sieht aus wie ein Zugangsdatum "
+                                      f"({verdacht})",
+                            "ort": f"brainbook.md:{nummer}"})
+    for stichwort, eintrag in brainbook.laden().items():
+        for regal in eintrag.get("regal", []):
+            pfad = regal.get("pfad")
+            if pfad and not Path(pfad).is_dir():
+                maengel.append({"schwere": "leicht",
+                                "befund": f"„{stichwort}\" zeigt auf ein Regal, "
+                                          f"das es nicht mehr gibt",
+                                "ort": pfad})
+        for verweis in eintrag.get("verweise", []):
+            ziel = Path(verweis.rstrip("/"))
+            if not ziel.exists():
+                maengel.append({"schwere": "leicht",
+                                "befund": f"Verweis von „{stichwort}\" ist tot",
+                                "ort": verweis})
+    return maengel
+
+
 def regal_zusicherungen() -> list[dict]:
     maengel: list[dict] = []
     if not konfig.REGISTER.exists():
@@ -704,6 +738,8 @@ def vollpruefung(projekte: list[Path] | None = None) -> dict:
             befunde.append({**m, "projekt": wurzel.name})
     for m in regal_zusicherungen():
         befunde.append({**m, "projekt": "(Regal)"})
+    for m in brainbook_zusicherungen():
+        befunde.append({**m, "projekt": "(Brainbook)"})
 
     gegenproben = []
     for sitzung in list(chronik.sitzungen_mit_aktivitaet(7))[:25]:

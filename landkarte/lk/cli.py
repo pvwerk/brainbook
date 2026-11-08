@@ -11,7 +11,8 @@ import time
 from datetime import date, datetime
 from pathlib import Path
 
-from . import aufseher, buch, chronik, digest, karte, konfig, mindmap, notizen
+from . import aufseher, brainbook, buch, chronik, digest, karte, konfig
+from . import mindmap, notizen
 from . import korrektur, nachtrag, pruefer, regalwart, register, scan
 from . import schwaerzen as _schw
 from . import suche, testleser
@@ -156,6 +157,51 @@ def befehl_kapitel(args) -> int:
     return 0
 
 
+def befehl_merke(args) -> int:
+    """Ein Stichwort von Jan in das Brainbook eintragen."""
+    ergebnis = brainbook.merken(
+        args.stichwort, ist=args.ist, auch=args.auch, was=args.was or "",
+        kategorien=args.kategorie, verweise=args.verweis, notiz=args.notiz)
+    neu = ergebnis["neu"]
+    print(f"Brainbook: „{ergebnis['stichwort']}“")
+    for zeile in brainbook.ausgeben(ergebnis["eintrag"]):
+        print(zeile)
+    if neu.get("unbekannt"):
+        print(f"\n  NICHT gefunden: {', '.join(neu['unbekannt'])}", file=sys.stderr)
+        print("  Steht das Regal schon? → landkarte regale", file=sys.stderr)
+        return 1
+    print(f"\n  {_kurz(brainbook.BUCH)}")
+    return 0
+
+
+def befehl_brainbook(args) -> int:
+    if args.begriff:
+        treffer = brainbook.nachschlagen(args.begriff)
+        if not treffer:
+            print(f"„{args.begriff}“ steht nicht im Brainbook.")
+            print('Eintragen mit:  landkarte merke "<stichwort>" --ist <projekt>')
+            return 1
+        for eintrag in treffer:
+            for zeile in brainbook.ausgeben(eintrag):
+                print(zeile)
+            print()
+        return 0
+    eintraege = brainbook.laden()
+    if not eintraege:
+        print("Brainbook ist leer.")
+        print('Eintragen mit:  landkarte merke "ETM CRM" --ist etm-gutachten')
+        return 1
+    print(f"Brainbook — {len(eintraege)} Stichworte  "
+          f"({_kurz(brainbook.BUCH)})")
+    print("steht in keinem Regal und in keiner Liste")
+    print()
+    for eintrag in eintraege.values():
+        for zeile in brainbook.ausgeben(eintrag):
+            print(zeile)
+        print()
+    return 0
+
+
 def befehl_wo(args) -> int:
     """Dreistufig nachschlagen: Regal, Fach, Inhalt.
 
@@ -166,10 +212,20 @@ def befehl_wo(args) -> int:
     hier = projektwurzel(None)
     hier_pfad = str(hier.resolve())
 
+    # Zuerst das Brainbook: Jans Wort zaehlt mehr als jeder Ordnername.
+    aus_brainbook = brainbook.nachschlagen(args.begriff)
+    if aus_brainbook:
+        print("AUS DEINEM BRAINBOOK")
+        for eintrag in aus_brainbook[:3]:
+            for zeile in brainbook.ausgeben(eintrag):
+                print("  " + zeile)
+        print()
+
     nach_name = regalwart.regal_finden(args.begriff, hier=hier)
     alle_treffer = suche.finden(args.begriff, grenze=400)
 
     regale = regalwart.laden().get("regale", {})
+    regale_vorab = regale
     name_zu_pfad = {e["name"]: pf for pf, e in regale.items()}
 
     # Inhaltstreffer je Regal zusammenzaehlen
@@ -182,6 +238,27 @@ def befehl_wo(args) -> int:
     kandidaten: dict[str, dict] = {}
     for r in nach_name:
         kandidaten[r["pfad"]] = {**r, "inhaltstreffer": 0}
+    for eintrag in aus_brainbook:
+        for regal in eintrag.get("regal", []):
+            pfad = regal.get("pfad")
+            if not pfad:
+                continue
+            e = regale_vorab.get(pfad, {})
+            vorhanden = kandidaten.get(pfad)
+            punkte = eintrag["punkte"]
+            if vorhanden:
+                vorhanden["punkte"] += punkte
+                vorhanden["grund"] = (f"Brainbook: {eintrag['wie']}; "
+                                      + vorhanden["grund"])
+            else:
+                kandidaten[pfad] = {
+                    "pfad": pfad, "name": e.get("name", regal.get("name")),
+                    "gruppe": e.get("gruppe", ""), "zweck": e.get("zweck", ""),
+                    "punkte": punkte, "inhaltstreffer": 0,
+                    "grund": f"Brainbook: {eintrag['wie']}",
+                    "verwechselbar_mit": [Path(x).name for x in
+                                          e.get("verwechselbar_mit", [])],
+                    "faecher": e.get("faecher", [])}
     for pfad, treffer in inhalt.items():
         eintrag = regale.get(pfad, {})
         vorhanden = kandidaten.get(pfad)
@@ -772,6 +849,24 @@ def zerleger() -> argparse.ArgumentParser:
     s.add_argument("--einfach", action="store_true",
                    help="nur ein Schreiber statt Zwillingen")
     s.set_defaults(fn=befehl_kapitel)
+
+    s = u.add_parser("merke", aliases=["brainbook-merke"],
+                     help="Stichwort, Kosename oder Synonym ins Brainbook")
+    s.add_argument("stichwort", help='wie DU es sagst, z.B. "ETM CRM"')
+    s.add_argument("--ist", action="append", default=[],
+                   help="Projekt oder Pfad, mehrfach moeglich")
+    s.add_argument("--auch", action="append", default=[],
+                   help="weiteres Synonym")
+    s.add_argument("--was", help="ein Satz: was ist das")
+    s.add_argument("--kategorie", action="append", default=[])
+    s.add_argument("--verweis", action="append", default=[])
+    s.add_argument("--notiz", action="append", default=[])
+    s.set_defaults(fn=befehl_merke)
+
+    s = u.add_parser("brainbook", aliases=["tresen"],
+                     help="dein Brainbook zeigen oder nachschlagen")
+    s.add_argument("begriff", nargs="?")
+    s.set_defaults(fn=befehl_brainbook)
 
     s = u.add_parser("wo", help="dreistufig nachschlagen: Regal, Fach, Inhalt")
     s.add_argument("begriff")

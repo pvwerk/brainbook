@@ -17,6 +17,7 @@ Es steht in keiner Datei, weil es nur beim Arbeiten entsteht.
 | **Regalwart** | beschriftet und gruppiert die Regale, erkennt neue, warnt vor Verwechslung | Skript | mit dem Regal |
 | **Bibliothekar** | baut das Regal, sortiert nach echter Nutzung | Skript | nächtlich |
 | **Testleser** | Rückwärtssuche: kennt die Antwort, sucht die Frage | Skript + Agent | nächtlich, stichprobenartig |
+| **Brainbook** | Jans Worte → Orte in der Ablage; am Tresen, in keiner Liste | von Hand, `landkarte merke` | wenn Jan ein Wort prägt |
 | **Aufseher** | findet Muster, benennt Schwachstellen, schlägt vor | Skript + Agent | wöchentlich |
 
 ## Der Testleser — Rückwärtssuche
@@ -56,6 +57,43 @@ Einen Alias übernimmt er nur, wenn er keinem anderen Regal gehört — sonst
 entstünde genau die Verwechslung, die er verhindern soll. Maschinelle
 Schlagworte stehen in `.landkarte/schlagworte.md`; `notizen.md` bleibt dem
 Menschen.
+
+## Das Brainbook — am Tresen, in keiner Liste
+
+Jans eigenes Buch. Es steht in **keinem Regal und in keiner Liste**, wird nicht
+gescannt, nicht sortiert, nicht vom Testleser geprüft und erscheint nicht im
+Regal. Es liegt beim Bibliothekar am Tresen: `~/.landkarte/brainbook.md`.
+
+Darin stehen **nur Verweise** — links ein Wort, wie Jan es sagt, rechts der Ort
+in der Ablage. Es ist das Übersetzungsbuch von seinem Gedächtnis in diese
+Bibliothek:
+
+```sh
+landkarte merke "ETM CRM" --ist etm-gutachten \
+  --auch "Mängelaufnahme" --auch "Gutachter-Tool" \
+  --was "Werkzeug, mit dem ich meine PV-Gutachten schreibe" \
+  --notiz "löst das alte Tool auf der Synology ab"
+```
+
+```
+ETM CRM
+   auch: Mängelaufnahme, Gutachter-Tool, ETM-Tool
+   was: Werkzeug, mit dem ich meine PV-Gutachten schreibe
+   Regal: etm-gutachten  ~/Projekte/etm-gutachten
+   Kategorien: ETM
+   → ~/Projekte/etm-gutachten/KARTE.md
+   Notiz: löst das alte Mängelaufnahme-Tool auf der Synology (Port 4100) ab
+```
+
+`landkarte wo "ETM CRM"` sieht **zuerst** hier nach — Jans Wort zählt mehr als
+jeder Ordnername. Übernommen wird nur, was belegt ist: Regal und Pfade aus dem
+Verzeichnis, die Gruppe als Kategorie. Ordnernamen wie `app/` oder `tests/`
+kommen nicht hinein; die stehen in Liste 2. Beim Sitzungsstart liegen die
+Stichworte im Kontext, damit ein Wort wie „Unser Betriebssystem" sofort sitzt.
+
+Das Verzeichnis zum Brainbook hat Jan selbst — deshalb ist es eine einzige, von
+Hand lesbare Datei. `landkarte pruefen` prüft nur zwei Dinge daran: keine
+Zugangsdaten, keine toten Verweise.
 
 ## Drei Listen
 
@@ -138,6 +176,9 @@ landkarte pruefen [pfad] [--sitzung ID]
 landkarte abweichungen [--tage 120]
 landkarte aufsicht [--ohne-modell] [--einfach] [--zeigen]
 
+landkarte merke "<wort>" --ist <projekt> [--auch ...] [--was ...] [--notiz ...]
+landkarte brainbook ["<wort>"]       # dein Buch zeigen oder nachschlagen
+
 landkarte wo <begriff>               # dreistufig: Regal, Fach, Inhalt
 landkarte regale [--faecher] [--journal]
 
@@ -166,6 +207,8 @@ landkarte status
   abweichungen.jsonl     Strichliste der Abweichungsarten
   projekte/<slug>.json   Suchindex je Projekt
   register.json          das Regal, maschinenlesbar
+  brainbook.md           Jans Buch am Tresen — in keiner Liste, von Hand lesbar
+  brainbook-eintragungen.jsonl  wann welches Stichwort dazukam, nur angehängt
   WERKSTATT.md           Befund und Vorschläge des Aufsehers
   befund.json            dieselben Messwerte maschinenlesbar
 

@@ -17,6 +17,27 @@ fünf Rollen, von denen nur zwei ein Sprachmodell brauchen:
 | Testleser | Rückwärtssuche: kennt die Antwort, sucht die Frage | Skript + Agent, nächtlich |
 | Aufseher | findet Muster und Schwachstellen, schlägt vor | Skript + Agent, wöchentlich |
 
+## Das Brainbook geht vor
+
+Jan hat eigene Worte für seine Projekte: „ETM CRM" ist `~/Projekte/etm-gutachten`,
+„Unser Betriebssystem" ist die Tablet-App, „das CRM" ist PVWERK-CRM. Diese
+Übersetzung steht in seinem Brainbook (`~/.landkarte/brainbook.md`), das in
+keinem Regal und in keiner Liste geführt wird.
+
+**Benutzt Jan eines seiner Worte, zuerst dort nachsehen** — `landkarte wo` tut
+das von selbst, `landkarte brainbook "<wort>"` zeigt nur den Eintrag. Die
+Stichworte liegen beim Sitzungsstart im Kontext.
+
+**Prägt Jan ein neues Wort** („speichere das als ETM CRM"), sofort eintragen:
+
+```
+landkarte merke "ETM CRM" --ist etm-gutachten --auch "Mängelaufnahme" \
+  --was "Werkzeug, mit dem ich meine Gutachten schreibe" --notiz "..."
+```
+
+Dort stehen **nur Verweise**. Keine Inhalte, keine Zugangsdaten, keine
+Ordnernamen als Kategorien.
+
 ## Zuerst nachsehen, dann lesen
 
 Beim Sitzungsstart liegt der Auszug des Projekts im Kontext: Befehle, Adressen,
