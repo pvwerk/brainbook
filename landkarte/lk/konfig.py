@@ -36,6 +36,18 @@ STANDARD = {
     "aufseher_modell": "sonnet",
     "aufseher_doppelt": True,
     "kapitel_min_aufrufe": 8,
+    # Selbstprotokoll: nur lokal, verlaesst den Rechner nur per Export
+    "statistik": True,
+    "teilnehmer": "",
+    "ki": "unbekannt",
+    # Wie ein Sprachmodell gerufen wird. {modell} wird ersetzt. So laeuft das
+    # Werkzeug auch mit codex, llm, ollama oder einem eigenen Skript.
+    "modell_befehl": [
+        "claude", "-p", "--model", "{modell}",
+        "--restricted", "--strict-mcp-config",
+        "--disallowed-tools", "Read", "Edit", "Write", "Glob", "Grep",
+        "Task", "WebSearch", "WebFetch", "NotebookEdit", "TodoWrite",
+    ],
 }
 
 # Dateiendungen, die als Inhalt gelesen werden

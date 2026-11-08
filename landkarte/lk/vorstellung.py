@@ -1,0 +1,158 @@
+"""Zweck: Die Bibliothek erklaert sich beim ersten Mal selbst.
+
+Wer das Werkzeug neu einrichtet, soll nicht erst eine README suchen muessen.
+Beim ersten Start legt der Hook eine Vorstellung in den Kontext, und die KI
+erklaert in eigenen Worten, was die Bibliothek kann, wie sie vorgeht, was von
+selbst passiert und wie man eingreift. Danach nie wieder - ein Merker verhindert
+die Wiederholung.
+
+`landkarte vorstellen` zeigt denselben Text fuer Menschen, jederzeit.
+"""
+
+from __future__ import annotations
+
+from datetime import date
+from pathlib import Path
+
+from . import konfig
+
+MERKER = konfig.LK_HEIM / "vorgestellt"
+
+
+def schon_vorgestellt() -> bool:
+    return MERKER.exists()
+
+
+def merken() -> None:
+    try:
+        konfig.LK_HEIM.mkdir(parents=True, exist_ok=True)
+        MERKER.write_text(date.today().isoformat() + "\n", "utf-8")
+    except OSError:
+        pass
+
+
+def zuruecksetzen() -> None:
+    try:
+        MERKER.unlink()
+    except OSError:
+        pass
+
+
+# --------------------------------------------------------------- fuer Menschen
+
+TEXT = """\
+LANDKARTE & BRAINBOOK — was das ist
+
+WAS ES KANN
+Es hält Projektwissen fest, damit niemand nach Wochen wieder von vorn anfängt.
+Je Projekt entsteht ein Inhaltsverzeichnis (KARTE.md) mit vier Teilen:
+  Spickzettel   die Befehle, Adressen und Zugänge-Zeiger des Projekts
+  Fallen        wo schon Zeit verloren ging, und warum
+  Wo liegt was  jede Datei mit einem Satz, wofür sie da ist
+  Symbole       Funktionen und Klassen mit Zeilennummer
+
+WIE ES VORGEHT
+Gesucht wird dreistufig, damit man nicht im falschen Projekt nachsieht:
+  landkarte wo "<begriff>"
+    Liste 1  Regal     welches Projekt
+    Liste 2  Fach      welcher Teil davon
+    Liste 3  Inhalt    Datei und Zeile
+Ähnlich benannte Projekte werden gegenseitig als Verwechslungsgefahr vermerkt.
+
+WAS VON SELBST PASSIERT
+  - Beim Start einer Sitzung liegt der Auszug des Projekts im Kontext.
+  - Mit Claude Code: ein Chronist schreibt jeden Werkzeugaufruf mit (2 ms,
+    keine Token), und am Sitzungsende machen zwei unabhängige Schreiber daraus
+    ein Buchkapitel; ein Schiedsrichter vergleicht die beiden am Rohprotokoll.
+  - Nachts: Verzeichnis neu bauen, nach echter Nutzung sortieren, und ein
+    Testleser prüft stichprobenartig, ob das Verzeichnis zum Finden taugt.
+  - Ohne Claude Code läuft nichts automatisch, aber alles von Hand.
+
+WIE DU EINFLUSS NIMMST
+  landkarte notiz "..."                    eine Falle festhalten
+  landkarte notiz --art regel "..."        eine Regel für das nächste Mal
+  landkarte notiz --art zugang "..."       WO Zugangsdaten liegen, nie welche
+  landkarte notiz --art offen "..."        offener Punkt
+  landkarte korrigieren "falsch" "richtig" gespeichertes Wissen berichtigen
+  .landkarte/notizen.md                    deine Datei, wird nie überschrieben
+  .landkarte/ignorieren.txt                was nicht kartografiert werden soll
+  ~/.landkarte/konfig.json                 Wurzeln, Gruppen, Aliase, Modell
+  landkarte dienst --einbauen / --ausbauen Nachtlauf an oder aus
+  landkarte einrichten --statistik-aus     Selbstprotokoll abschalten
+
+Erzeugtes wird bei jedem Scan neu gebaut — schreib nicht in KARTE.md hinein,
+sondern in notizen.md. Von Hand Geschriebenes bleibt immer erhalten.
+
+DAS BRAINBOOK
+Dein eigenes Buch: ~/.landkarte/brainbook.md
+Es steht in keinem Regal und in keiner Liste, wird nicht gescannt, nicht
+sortiert und nicht geprüft. Es liegt beim Bibliothekar am Tresen.
+
+Es ist ein Übersetzungsbuch: links ein Wort, wie DU es sagst, rechts der Ort in
+der Ablage. Sagst du "ETM CRM", wird daraus der Ordner etm-gutachten, ohne dass
+du den Ordnernamen kennen musst. Darin stehen nur Verweise — Projekt,
+Kategorien, Pfade, ein Satz "was ist das" und Kurznotizen.
+
+  brainbook                      das ganze Buch
+  brainbook "<wort>"             ein Stichwort nachschlagen
+  landkarte merke "<wort>" --ist <projekt> --auch "<synonym>" --was "..."
+
+landkarte wo sieht dort ZUERST nach: dein Wort zählt mehr als jeder Ordnername.
+Prägst du im Gespräch ein neues Wort, sag es — es wird eingetragen.
+
+MITHELFEN
+Das Werkzeug protokolliert sich selbst, damit Fehler gefunden werden: Befehle,
+Dauern, Fehlerklassen, Größenklassen. Nicht: Projektnamen, Pfade, Inhalte,
+Suchbegriffe.
+  brainbook stats --roh                jede Rohzeile einzeln prüfen
+  brainbook stats --export ~/Desktop   Datei zum Verschicken
+"""
+
+# ------------------------------------------------------------------- fuer die KI
+
+ANWEISUNG = """\
+NEUE EINRICHTUNG — dieser Mensch benutzt die Landkarte zum ersten Mal.
+
+Erkläre ihm zu Beginn deiner ersten Antwort kurz und in eigenen Worten, was
+hier eingerichtet wurde. Höchstens etwa zehn Zeilen, dann weiter mit seinem
+eigentlichen Anliegen. Biete am Ende an, Einzelheiten zu zeigen. Wenn er sofort
+eine andere Aufgabe stellt, hat die Aufgabe Vorrang; erkläre es dann in zwei
+Sätzen und biete den Rest an.
+
+Diese fünf Punkte gehören in die Erklärung:
+
+1. WAS ES KANN — je Projekt ein Inhaltsverzeichnis (KARTE.md) mit Spickzettel
+   (Befehle, Adressen), Fallenprotokoll, einer Zeile Zweck je Datei und den
+   Symbolen mit Zeilennummern.
+
+2. WIE GESUCHT WIRD — `landkarte wo "<begriff>"` antwortet dreistufig: welches
+   Projekt, welcher Teil davon, welche Datei und Zeile. Ähnlich benannte
+   Projekte werden als Verwechslungsgefahr genannt.
+
+3. WAS VON SELBST PASSIERT — beim Sitzungsstart liegt der Auszug des Projekts
+   im Kontext. Mit Claude Code schreibt ein Chronist jeden Werkzeugaufruf mit
+   und am Sitzungsende machen zwei unabhängige Schreiber ein Buchkapitel, das
+   ein Schiedsrichter am Rohprotokoll vergleicht. Nachts wird neu kartografiert
+   und ein Testleser prüft, ob das Verzeichnis zum Finden taugt.
+
+4. WIE ER EINFLUSS NIMMT — `landkarte notiz "..."` hält eine Falle fest,
+   `--art regel|zugang|offen` die anderen Sorten; `landkarte korrigieren
+   "falsch" "richtig"` berichtigt falsches Wissen, ohne das Original zu
+   löschen. `.landkarte/notizen.md` ist seine Datei und wird nie überschrieben,
+   `.landkarte/ignorieren.txt` nimmt Ordner aus. Erzeugtes (KARTE.md) wird bei
+   jedem Scan neu gebaut — Handschriftliches gehört in notizen.md.
+
+5. DAS BRAINBOOK — sein eigenes Buch in ~/.landkarte/brainbook.md, das in
+   keinem Regal und keiner Liste steht. Es übersetzt seine Worte in Orte der
+   Ablage: sagt er "ETM CRM", findet `landkarte wo` den Ordner etm-gutachten.
+   Darin stehen nur Verweise, keine Inhalte. Prägt er im Gespräch ein eigenes
+   Wort für etwas, trage es unaufgefordert ein:
+   `landkarte merke "<wort>" --ist <projekt> --was "..."`.
+
+Erwähne auch in einem Satz, dass das Werkzeug sich selbst protokolliert, damit
+Fehler gefunden werden können, dass darin keine Projektnamen, Pfade oder
+Inhalte stehen und dass `brainbook stats --roh` alles zeigt.
+
+Sage nichts, was du hier nicht liest. Vollständig steht es in
+`landkarte vorstellen` und in der README des Werkzeugs.
+"""

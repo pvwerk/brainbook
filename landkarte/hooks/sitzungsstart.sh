@@ -1,5 +1,7 @@
 #!/bin/sh
 # Zweck: Legt beim Sitzungsstart den Auszug der Landkarte in den Kontext.
+# Beim allerersten Mal steht die Vorstellung davor, damit die KI dem Menschen
+# erklaert, was die Bibliothek kann und wie er eingreift. Danach nie wieder.
 # Liest nur den Zwischenspeicher, damit der Start nicht wartet; der Neuscan
 # und faellige Buchkapitel laufen abgekoppelt im Hintergrund weiter.
 
@@ -19,7 +21,7 @@ command -v "$LK" >/dev/null 2>&1 || exit 0
   "$LK" kapitel --faellig --grenze 3 >/dev/null 2>&1
 ) >/dev/null 2>&1 &
 
-AUSZUG=$("$LK" digest "$ORDNER" 2>/dev/null)
+AUSZUG=$("$LK" digest --mit-vorstellung "$ORDNER" 2>/dev/null)
 [ -z "$AUSZUG" ] && exit 0
 
 if command -v jq >/dev/null 2>&1; then

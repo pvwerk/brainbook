@@ -33,7 +33,7 @@ def _kuerzen(zeilen: list[str], grenze: int = GRENZE) -> str:
     return "\n".join(aus)
 
 
-def bauen(wurzel: Path) -> str:
+def bauen(wurzel: Path, grenze: int = GRENZE) -> str:
     """Auszug für ein Projekt. Leerer Text, wenn es keine Karte gibt."""
     wurzel = wurzel.resolve()
     karte_json = wurzel / ".landkarte" / "karte.json"
@@ -138,4 +138,4 @@ def bauen(wurzel: Path) -> str:
     z.append("Mehr: KARTE.md (Inhaltsverzeichnis) · .landkarte/symbole.md "
              "(alle Symbole) · landkarte finde <begriff> (über alle Projekte) · "
              "landkarte notiz \"...\" (Falle oder Entscheidung festhalten)")
-    return _kuerzen(z)
+    return _kuerzen(z, grenze)

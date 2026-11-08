@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+"""Zweck: Einstiegspunkt `brainbook`. Ohne Argument zeigt es Jans Buch.
+
+Derselbe Werkzeugkasten wie `landkarte`, nur anders betreten:
+  brainbook                 -> das Buch
+  brainbook "ETM CRM"       -> ein Stichwort nachschlagen
+  brainbook stats           -> Selbstprotokoll
+  brainbook merke ...       -> eintragen
+Jeder andere Unterbefehl von `landkarte` funktioniert ebenso.
+"""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from lk.cli import main, zerleger  # noqa: E402
+
+if __name__ == "__main__":
+    argumente = sys.argv[1:]
+    bekannt = set()
+    for aktion in zerleger()._subparsers._group_actions:
+        bekannt.update(aktion.choices)
+    if not argumente:
+        argumente = ["brainbook"]
+    elif argumente[0] not in bekannt and not argumente[0].startswith("-"):
+        argumente = ["brainbook"] + argumente
+    sys.exit(main(argumente))

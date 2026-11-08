@@ -133,26 +133,27 @@ def _gescheitert(datei: str, fehler_je_datei: dict) -> str:
 
 
 def _claude_rufen(anfrage: str, modell: str) -> tuple[bool, str]:
+    """Ein Sprachmodell mit einer Textaufgabe rufen.
+
+    Der Befehl steht in der Konfiguration (`modell_befehl`), damit das Werkzeug
+    nicht an Claude Code haengt: wer `codex exec`, `llm`, `ollama` oder ein
+    eigenes Skript hat, traegt es dort ein. Erwartet wird: Anfrage auf stdin,
+    Antwort auf stdout.
+    """
     umgebung = dict(os.environ)
     umgebung["LANDKARTE_SCHREIBER"] = "1"
-    # --restricted nimmt die befehlsausfuehrenden Werkzeuge weg und ignoriert
-    # Benutzer-, Projekt- und lokale Einstellungen. Damit laedt der Schreiber
-    # weder Hooks noch Plugins: keine Rueckkopplung in die eigene Chronik.
-    # Die Werkzeugsperre dazu, weil die Aufgabe reine Textarbeit ist.
-    befehl = [
-        "claude", "-p", "--model", modell,
-        "--restricted", "--strict-mcp-config",
-        "--disallowed-tools",
-        "Read", "Edit", "Write", "Glob", "Grep", "Task", "WebSearch",
-        "WebFetch", "NotebookEdit", "TodoWrite",
-    ]
+    vorlage = konfig.laden().get("modell_befehl") or []
+    if not vorlage:
+        return False, ("kein modell_befehl eingetragen - "
+                       "siehe landkarte einrichten --hilfe-modell")
+    befehl = [teil.replace("{modell}", modell) for teil in vorlage]
     try:
         ergebnis = subprocess.run(
             befehl, input=anfrage, capture_output=True, text=True,
             timeout=300, env=umgebung, cwd=str(Path.home()),
         )
     except FileNotFoundError:
-        return False, "claude nicht im PATH gefunden"
+        return False, f"{befehl[0]} nicht im PATH gefunden"
     except subprocess.TimeoutExpired:
         return False, "Zeitueberschreitung nach 300 s"
     if ergebnis.returncode != 0:

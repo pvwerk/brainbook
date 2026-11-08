@@ -406,7 +406,9 @@ def projekt_scannen(wurzel: Path, konf: dict | None = None) -> dict:
         d.pop("_roh_verweise", None)
 
     zweck_projekt = ""
-    for name in ("README.md", "KARTE.md", "NOTES.md", "docs/PLAN.md"):
+    # KARTE.md ist unsere eigene Ausgabe - daraus den Zweck zu lesen waere
+    # ein Zirkelbezug und ergibt die "Stand"-Zeile.
+    for name in ("README.md", "NOTES.md", "docs/PLAN.md", "docs/README.md"):
         p = wurzel / name
         if p.exists():
             text = _lesen(p) or ""

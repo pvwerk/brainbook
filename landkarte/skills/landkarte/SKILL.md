@@ -97,6 +97,13 @@ landkarte korrigieren "Die Seite liegt nicht bei Strato" "Sie liegt beim Strato-
 Das Original bleibt stehen, wird in Karte und Auszug durchgestrichen, und der
 richtige Sachverhalt steht dahinter.
 
+## Beim ersten Mal erklären
+
+Steht am Anfang des Kontexts „NEUE EINRICHTUNG", benutzt dieser Mensch die
+Landkarte zum ersten Mal. Dann erkläre sie ihm zu Beginn deiner Antwort kurz
+und in eigenen Worten — die fünf Punkte stehen dort. Danach nicht wiederholen;
+der Merker verhindert es von selbst. Voller Text: `landkarte vorstellen`.
+
 ## Zustand prüfen
 
 ```
@@ -106,6 +113,8 @@ landkarte abweichungen    # Strichliste: wo die beiden Schreiber auseinandergehe
 landkarte protokoll       # Spruchbuch des Schiedsrichters, nach Protokollfassung
 landkarte regale          # Regalbeschriftung: Gruppen, Aliase, Verwechslungsgefahr
 landkarte schwaerzen      # Zugangsdaten aus der Chronik entfernen
+landkarte stats           # kontextloses Selbstprotokoll (für Rückmeldungen)
+landkarte vorstellen      # erklären, was die Bibliothek kann
 landkarte lesung          # Testleser auf eine Stichprobe
 landkarte lesung --bilanz # gemessene Trefferquote des Verzeichnisses
 landkarte aufsicht        # vollständiger Werkstattbericht (nutzt ein Modell)

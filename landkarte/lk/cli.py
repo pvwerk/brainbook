@@ -15,7 +15,16 @@ from . import aufseher, brainbook, buch, chronik, digest, karte, konfig
 from . import mindmap, notizen
 from . import korrektur, nachtrag, pruefer, regalwart, register, scan
 from . import schwaerzen as _schw
-from . import suche, testleser
+from . import statistik
+from . import suche, testleser, vorstellung
+
+
+_MESSUNG: dict = {}
+
+
+def messen(**werte) -> None:
+    """Zaehlwerte fuer das Selbstprotokoll hinterlegen - niemals Inhalte."""
+    _MESSUNG.update(werte)
 
 
 def projektwurzel(pfad: str | None = None) -> Path:
@@ -44,11 +53,20 @@ def _kurz(p: Path | str) -> str:
 
 def befehl_scan(args) -> int:
     wurzel = projektwurzel(args.pfad)
+    if not wurzel.is_dir():
+        print(f"{_kurz(wurzel)} gibt es nicht.", file=sys.stderr)
+        return 2
     beginn = time.time()
-    ergebnis = karte.bauen(wurzel)
+    try:
+        ergebnis = karte.bauen(wurzel)
+    except ValueError as fehler:
+        print(str(fehler), file=sys.stderr)
+        return 2
     if args.mindmap:
         modell = json.loads((wurzel / ".landkarte" / "karte.json").read_text("utf-8"))
         mindmap.bauen(modell, wurzel / ".landkarte" / "mindmap.html")
+    messen(projekt=str(wurzel), dateien=ergebnis["dateien"],
+           kapitel=ergebnis["kapitel"], fallen=ergebnis["fallen"])
     print(f"{_kurz(ergebnis['karte'])} — {ergebnis['dateien']} Dateien, "
           f"{ergebnis['kapitel']} Kapitel, {ergebnis['fallen']} Fallen, "
           f"{int((time.time()-beginn)*1000)} ms")
@@ -58,6 +76,9 @@ def befehl_scan(args) -> int:
 def befehl_regal(args) -> int:
     beginn = time.time()
     ergebnis = register.regal_bauen(neu_scannen=not args.ohne_scan)
+    messen(projekte=ergebnis["projekte"],
+           scanfehler=len(ergebnis["scanfehler"]),
+           regalereignisse=len(ergebnis.get("regalereignisse", [])))
     print(f"{ergebnis['projekte']} Projekte · {_kurz(ergebnis['regal'])} · "
           f"{int(time.time()-beginn)} s")
     for e in ergebnis.get("regalereignisse", []):
@@ -69,15 +90,32 @@ def befehl_regal(args) -> int:
 
 def befehl_digest(args) -> int:
     wurzel = projektwurzel(args.pfad)
-    text = digest.bauen(wurzel)
-    if not text:
+    # Beim ersten Mal die Vorstellung voranstellen und das merken.
+    voran = ""
+    if args.mit_vorstellung and not vorstellung.schon_vorgestellt():
+        voran = vorstellung.ANWEISUNG + "\n"
+        vorstellung.merken()
+    text = digest.bauen(wurzel, grenze=digest.GRENZE - len(voran))
+    if not text and not voran:
         return 1
-    print(text)
+    print(voran + text)
+    return 0
+
+
+def befehl_vorstellen(args) -> int:
+    """Erklären, was die Bibliothek kann und wie man eingreift."""
+    if args.erneut:
+        vorstellung.zuruecksetzen()
+        print("Merker gelöscht — beim nächsten Sitzungsstart erklärt es die KI "
+              "noch einmal.")
+        return 0
+    print(vorstellung.ANWEISUNG if args.fuer_ki else vorstellung.TEXT)
     return 0
 
 
 def befehl_finde(args) -> int:
     treffer = suche.finden(args.begriff, projekt=args.projekt)
+    messen(treffer=len(treffer), laenge=len(args.begriff))
     print(suche.ausgeben(treffer, args.begriff))
     return 0 if treffer else 1
 
@@ -282,6 +320,9 @@ def befehl_wo(args) -> int:
             }
 
     gereiht = sorted(kandidaten.values(), key=lambda r: -r["punkte"])
+    messen(treffer=len(gereiht), inhaltstreffer=len(alle_treffer),
+           aus_brainbook=len(aus_brainbook), laenge=len(args.begriff),
+           projekt=hier_pfad)
     print(f'Gesucht: "{args.begriff}"')
     print()
     print("LISTE 1 \u2014 Regal (welches Projekt)")
@@ -525,6 +566,9 @@ def befehl_aufsicht(args) -> int:
 
 def befehl_mindmap(args) -> int:
     wurzel = projektwurzel(args.pfad)
+    if not wurzel.is_dir():
+        print(f"{_kurz(wurzel)} gibt es nicht.", file=sys.stderr)
+        return 2
     karte_json = wurzel / ".landkarte" / "karte.json"
     if not karte_json.exists():
         karte.bauen(wurzel)
@@ -538,6 +582,9 @@ def befehl_mindmap(args) -> int:
 
 def befehl_mermaid(args) -> int:
     wurzel = projektwurzel(args.pfad)
+    if not wurzel.is_dir():
+        print(f"{_kurz(wurzel)} gibt es nicht.", file=sys.stderr)
+        return 2
     karte_json = wurzel / ".landkarte" / "karte.json"
     if not karte_json.exists():
         karte.bauen(wurzel)
@@ -548,9 +595,17 @@ def befehl_mermaid(args) -> int:
 def befehl_symbole(args) -> int:
     ziel = Path(args.datei).expanduser()
     wurzel = projektwurzel(str(ziel.parent))
+    if not wurzel.is_dir():
+        print(f"{_kurz(wurzel)} gibt es nicht.", file=sys.stderr)
+        return 2
     karte_json = wurzel / ".landkarte" / "karte.json"
     if not karte_json.exists():
-        karte.bauen(wurzel)
+        try:
+            karte.bauen(wurzel)
+        except (OSError, ValueError) as fehler:
+            print(f"Karte für {_kurz(wurzel)} nicht baubar: {fehler}",
+                  file=sys.stderr)
+            return 2
     modell = json.loads(karte_json.read_text("utf-8"))
     rel = str(ziel.resolve()).replace(str(wurzel) + "/", "") if ziel.exists() \
         else args.datei
@@ -671,6 +726,35 @@ def befehl_schwaerzen(args) -> int:
     return 0
 
 
+def befehl_stats(args) -> int:
+    """Selbstprotokoll zeigen oder ausfuehren - zum Verbessern des Werkzeugs."""
+    if args.roh:
+        zeilen = statistik.rohzeilen(args.monate)
+        print(f"# {len(zeilen)} Zeilen Rohprotokoll — jede einzeln pruefbar")
+        for z in zeilen:
+            print(z)
+        return 0
+    b = statistik.bericht(args.monate)
+    if args.export:
+        ziel = Path(args.export).expanduser()
+        if ziel.is_dir():
+            ziel = ziel / f"brainbook-stats-{statistik.teilnehmer()}-{date.today()}.json"
+        statistik.exportieren(ziel, args.monate)
+        print(statistik.ausgeben(b))
+        print()
+        print(f"Ausgeführt nach: {ziel}")
+        print("Darin steht: Befehle, Dauern, Fehlschläge, Abstürze, Umgebung.")
+        print("Darin steht NICHT: Projektnamen, Pfade, Inhalte, Suchbegriffe.")
+        print("Vorher selbst nachsehen:  brainbook stats --roh")
+        return 0
+    print(statistik.ausgeben(b))
+    if b.get("aufrufe"):
+        print()
+        print("Ausführen:  brainbook stats --export ~/Desktop")
+        print("Rohdaten:   brainbook stats --roh")
+    return 0
+
+
 def befehl_status(args) -> int:
     konf = konfig.laden()
     print("LANDKARTE")
@@ -776,6 +860,26 @@ def befehl_dienst(args) -> int:
 
 
 def befehl_einrichten(args) -> int:
+    konf = konfig.laden()
+    geaendert = False
+    if args.teilnehmer:
+        konf["teilnehmer"] = args.teilnehmer
+        geaendert = True
+    if args.ki:
+        konf["ki"] = args.ki
+        geaendert = True
+    if args.statistik_aus:
+        konf["statistik"] = False
+        geaendert = True
+    if args.statistik_an:
+        konf["statistik"] = True
+        geaendert = True
+    if geaendert:
+        konfig.schreiben(konf)
+        print(f"Teilnehmer: {konf.get('teilnehmer') or '(zufällige Kennung)'} · "
+              f"KI: {konf.get('ki')} · Selbstprotokoll: "
+              f"{'an' if konf.get('statistik', True) else 'aus'}")
+
     konfig.LK_HEIM.mkdir(parents=True, exist_ok=True)
     chronik.CHRONIK.mkdir(parents=True, exist_ok=True)
     chronik.SITZUNGEN.mkdir(parents=True, exist_ok=True)
@@ -825,7 +929,18 @@ def zerleger() -> argparse.ArgumentParser:
 
     s = u.add_parser("digest", help="kompakter Auszug (für den Hook)")
     s.add_argument("pfad", nargs="?")
+    s.add_argument("--mit-vorstellung", action="store_true",
+                   dest="mit_vorstellung",
+                   help="beim ersten Mal die Vorstellung voranstellen")
     s.set_defaults(fn=befehl_digest)
+
+    s = u.add_parser("vorstellen", aliases=["erklaer"],
+                     help="erklären, was die Bibliothek kann und wie man eingreift")
+    s.add_argument("--fuer-ki", action="store_true", dest="fuer_ki",
+                   help="die Fassung, die der Hook einer KI vorlegt")
+    s.add_argument("--erneut", action="store_true",
+                   help="Merker löschen, damit es noch einmal erklärt wird")
+    s.set_defaults(fn=befehl_vorstellen)
 
     s = u.add_parser("finde", aliases=["such"], help="über alle Projekte suchen")
     s.add_argument("begriff")
@@ -953,6 +1068,14 @@ def zerleger() -> argparse.ArgumentParser:
     s.add_argument("--grenze", type=int, help="nur die neuesten N Protokolle")
     s.set_defaults(fn=befehl_nachtragen)
 
+    s = u.add_parser("stats", aliases=["statistik"],
+                     help="Selbstprotokoll des Werkzeugs zeigen oder ausführen")
+    s.add_argument("--export", nargs="?", const="~/Desktop",
+                   help="als JSON ausführen (Standard: ~/Desktop)")
+    s.add_argument("--roh", action="store_true", help="jede Rohzeile zeigen")
+    s.add_argument("--monate", type=int, default=12)
+    s.set_defaults(fn=befehl_stats)
+
     s = u.add_parser("status", help="Überblick")
     s.set_defaults(fn=befehl_status)
 
@@ -964,15 +1087,37 @@ def zerleger() -> argparse.ArgumentParser:
     s.set_defaults(fn=befehl_dienst)
 
     s = u.add_parser("einrichten", help="Ablage anlegen und verknüpfen")
+    s.add_argument("--teilnehmer", help="dein Name für das Protokoll, z.B. andre")
+    s.add_argument("--ki", help="welche KI benutzt du: claude-code, chatgpt, "
+                               "grok, codex, keine")
+    s.add_argument("--statistik-aus", action="store_true", dest="statistik_aus",
+                   help="Selbstprotokoll abschalten")
+    s.add_argument("--statistik-an", action="store_true", dest="statistik_an")
     s.set_defaults(fn=befehl_einrichten)
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
+    rohargumente = list(argv if argv is not None else sys.argv[1:])
+    beginn = time.time()
     args = zerleger().parse_args(argv)
+    flaggen = [a.split("=")[0] for a in rohargumente if a.startswith("-")]
+    befehl = getattr(args, "befehl", "?")
+
+    def dauer() -> int:
+        return int((time.time() - beginn) * 1000)
+
     try:
-        return args.fn(args)
+        code = args.fn(args) or 0
     except BrokenPipeError:
         return 0
     except KeyboardInterrupt:
+        statistik.festhalten(befehl, flaggen, 130, dauer())
         return 130
+    except Exception:
+        statistik.absturz_festhalten(befehl, flaggen, dauer())
+        raise
+    projekt = _MESSUNG.pop("projekt", "")
+    statistik.festhalten(befehl, flaggen, code, dauer(),
+                         ergebnis=dict(_MESSUNG), projekt=projekt)
+    return code

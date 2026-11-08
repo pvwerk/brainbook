@@ -157,6 +157,65 @@ Schiedsrichter über die Zeit zu oft für dieselbe Position, meldet der Aufseher
 das als schweren Befund — bei zufälliger Reihenfolge kann eine Schieflage keine
 Wahrheit sein.
 
+## Weitergeben
+
+Eine einzige Datei richtet alles ein — sie enthält das Werkzeug, packt es nach
+`~/brainbook` aus, verknüpft die Befehle und erkennt selbst, was möglich ist:
+
+```sh
+python3 brainbook-einrichten.py
+```
+
+- **Claude Code gefunden** → Plugin mit Hooks wird eingerichtet. Chronist
+  schreibt mit, Kapitel entstehen am Sitzungsende, und beim ersten Start
+  erklärt die KI selbst, was die Bibliothek kann.
+- **kein Claude Code** → beste Alternative: `AGENTS.md` zum Einfügen in
+  ChatGPT (Projekt → Anweisungen) oder Grok (Custom Instructions), plus der
+  volle Erklärtext direkt im Terminal.
+
+Gebaut wird die Datei mit `python3 verteilen/paket-bauen.py` — **nach jeder
+Änderung am Werkzeug neu**, sonst veraltet sie. Alles Weitere in
+[`verteilen/START-HIER.md`](verteilen/START-HIER.md).
+
+## Erklärt sich selbst
+
+```sh
+landkarte vorstellen          # was es kann, wie es vorgeht, wie man eingreift
+landkarte vorstellen --erneut # Merker löschen, KI erklärt es noch einmal
+```
+
+Beim allerersten Sitzungsstart legt der Hook eine Vorstellung in den Kontext,
+damit die KI es dem Menschen in eigenen Worten erklärt — die fünf Punkte: was
+es kann, wie gesucht wird, was von selbst passiert, wie man eingreift, und was
+das Brainbook ist. Danach nie wieder.
+
+## Selbstprotokoll — kontextlos
+
+Das Werkzeug protokolliert **sich selbst**, damit mehrere Leute mit
+verschiedenen KIs Fehler finden können. Es ist kontextlos **schon beim
+Schreiben**, nicht erst beim Export — darum ist auch das Rohprotokoll harmlos
+und `--roh` zeigt nichts anderes als die Exportdatei.
+
+Festgehalten wird: welche **Art** von Aufgabe (der Befehl), welche **Art** von
+Struktur (Größenklassen, Sprachen, mit oder ohne Git), welche Fehlerklasse an
+welcher Stelle im **eigenen** Code, und wie oft. Fehlermeldungen werden auf ihr
+Muster zurückgeführt: aus `KeyError: 'vorlage/layout.html'` wird
+`KeyError: <text>`.
+
+Nicht festgehalten wird, **woran**: keine Projektnamen, keine Dateipfade, keine
+Inhalte, keine Suchbegriffe, keine Notizen.
+
+```sh
+brainbook stats                      # Zusammenfassung
+brainbook stats --roh                # jede Rohzeile einzeln prüfen
+brainbook stats --export ~/Desktop   # Datei zum Verschicken
+landkarte einrichten --statistik-aus # ganz abschalten
+```
+
+Besonders brauchbar ist die Zeile **„nach Fehlschlag oder Nulltreffer anders
+versucht"**: jeder Eintrag dort ist eine Stelle, an der das Werkzeug seinen
+Benutzer im Stich gelassen hat.
+
 ## Befehle
 
 ```sh
@@ -192,6 +251,8 @@ landkarte dienst [--einbauen]        # nächtlicher und wöchentlicher Lauf (lau
 landkarte mindmap [--oeffnen]        # eine HTML-Datei, offline, ohne CDN
 landkarte mermaid
 landkarte status
+landkarte vorstellen                 # erklären, was es kann und wie man eingreift
+landkarte stats [--roh] [--export]   # kontextloses Selbstprotokoll
 ```
 
 ## Was wohin geschrieben wird
