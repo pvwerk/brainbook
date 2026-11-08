@@ -255,7 +255,27 @@ def laufen(werkzeug: Path, *argumente: str) -> int:
         return 1
 
 
+BEKANNTE_SCHALTER = {
+    "--ziel", "--name", "--ki", "--ohne-plugin", "--ohne-regal",
+    "--nur-auspacken", "--hilfe", "--help", "-h",
+}
+
+
 def main() -> int:
+    # Hilfe und unbekannte Schalter abfangen, BEVOR etwas angelegt wird.
+    # Sonst installiert ein "--help" einfach los - das ist genau der Fehler,
+    # den jemand beim ersten Ausprobieren macht.
+    if {"--hilfe", "--help", "-h"} & set(sys.argv[1:]):
+        sage(__doc__ or "")
+        return 0
+    unbekannt = [a for a in sys.argv[1:]
+                 if a.startswith("-") and a not in BEKANNTE_SCHALTER]
+    if unbekannt:
+        sage("Unbekannter Schalter: " + ", ".join(unbekannt))
+        sage("")
+        sage(__doc__ or "")
+        return 2
+
     if sys.version_info < MINDESTENS:
         abbruch(
             f"Python {MINDESTENS[0]}.{MINDESTENS[1]} oder neuer wird gebraucht, "
