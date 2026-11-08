@@ -1,0 +1,11 @@
+{
+  "name": "landkarte",
+  "displayName": "Landkarte",
+  "version": "1.0.0",
+  "description": "Kartografiert alle Projekte: Inhaltsverzeichnis, Spickzettel, Fallenprotokoll, Buch und Mindmap. Chronist schreibt jeden Werkzeugaufruf mit, zwei unabhängige Schreiber machen daraus Kapitel, ein Schiedsrichter vergleicht sie.",
+  "author": { "name": "Jan Hartkämper" },
+  "license": "MIT",
+  "keywords": ["karte", "verzeichnis", "chronik", "mindmap", "gedaechtnis"],
+  "skills": ["./skills/"],
+  "hooks": "./hooks/hooks.json"
+}

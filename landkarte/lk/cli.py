@@ -1,0 +1,827 @@
+"""Zweck: Befehlszeile der Landkarte."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
+from datetime import date, datetime
+from pathlib import Path
+
+from . import aufseher, buch, chronik, digest, karte, konfig, mindmap, notizen
+from . import korrektur, nachtrag, pruefer, regalwart, register, scan
+from . import schwaerzen as _schw
+from . import suche
+
+
+def projektwurzel(pfad: str | None = None) -> Path:
+    """Projektordner bestimmen: Angabe, sonst von hier aufwaerts suchen."""
+    start = Path(pfad).expanduser().resolve() if pfad else Path.cwd()
+    if start.is_file():
+        start = start.parent
+    aktuell = start
+    while True:
+        if aktuell.resolve() not in konfig.NIEMALS_PROJEKT:
+            for marker in ("KARTE.md", ".landkarte", ".git", "pyproject.toml",
+                           "package.json"):
+                if (aktuell / marker).exists():
+                    return aktuell
+        if aktuell.parent == aktuell or aktuell == konfig.HEIM:
+            return start
+        aktuell = aktuell.parent
+
+
+def _kurz(p: Path | str) -> str:
+    return str(p).replace(str(konfig.HEIM), "~")
+
+
+# --------------------------------------------------------------- Einzelbefehle
+
+
+def befehl_scan(args) -> int:
+    wurzel = projektwurzel(args.pfad)
+    beginn = time.time()
+    ergebnis = karte.bauen(wurzel)
+    if args.mindmap:
+        modell = json.loads((wurzel / ".landkarte" / "karte.json").read_text("utf-8"))
+        mindmap.bauen(modell, wurzel / ".landkarte" / "mindmap.html")
+    print(f"{_kurz(ergebnis['karte'])} — {ergebnis['dateien']} Dateien, "
+          f"{ergebnis['kapitel']} Kapitel, {ergebnis['fallen']} Fallen, "
+          f"{int((time.time()-beginn)*1000)} ms")
+    return 0
+
+
+def befehl_regal(args) -> int:
+    beginn = time.time()
+    ergebnis = register.regal_bauen(neu_scannen=not args.ohne_scan)
+    print(f"{ergebnis['projekte']} Projekte · {_kurz(ergebnis['regal'])} · "
+          f"{int(time.time()-beginn)} s")
+    for e in ergebnis.get("regalereignisse", []):
+        print("  " + e.replace("**", ""))
+    for f in ergebnis["scanfehler"]:
+        print(f"  FEHLER {_kurz(f['projekt'])}: {f['fehler']}", file=sys.stderr)
+    return 0
+
+
+def befehl_digest(args) -> int:
+    wurzel = projektwurzel(args.pfad)
+    text = digest.bauen(wurzel)
+    if not text:
+        return 1
+    print(text)
+    return 0
+
+
+def befehl_finde(args) -> int:
+    treffer = suche.finden(args.begriff, projekt=args.projekt)
+    print(suche.ausgeben(treffer, args.begriff))
+    return 0 if treffer else 1
+
+
+def befehl_notiz(args) -> int:
+    wurzel = projektwurzel(args.projekt)
+    art = {"falle": "Fallen", "fallen": "Fallen", "regel": "Regeln",
+           "regeln": "Regeln", "zugang": "Zugaenge", "zugaenge": "Zugaenge",
+           "offen": "Offen"}.get(args.art.lower(), "Fallen")
+    ziel = notizen.anhaengen(wurzel, art, args.text)
+    print(f"{art} ← {_kurz(ziel)}")
+    if (wurzel / "KARTE.md").exists():
+        karte.bauen(wurzel)
+        print("KARTE.md neu gesetzt")
+    return 0
+
+
+def _kapitel_machen(sitzung: str, args):
+    """Einfach oder doppelt, je nach Einstellung."""
+    doppelt = (not args.einfach) and konfig.laden().get("schreiber_doppelt", True)
+    if doppelt and not args.trocken:
+        return pruefer.kapitel_doppelt(sitzung, args.modell)
+    return buch.kapitel_schreiben(sitzung, args.modell, trocken=args.trocken)
+
+
+def _kapitel_melden(ergebnis: dict) -> None:
+    zusatz = ""
+    if ergebnis.get("schreiber") == 2:
+        uebereinstimmung = ergebnis.get("uebereinstimmung")
+        if ergebnis.get("einstimmig") is True:
+            zusatz = "  [2 Schreiber, einstimmig]"
+        elif ergebnis.get("einstimmig") is False:
+            zusatz = (f"  [2 Schreiber, Abweichungen bereinigt, "
+                      f"{round((uebereinstimmung or 0)*100)} % Textgleichheit]")
+        else:
+            zusatz = "  [2 Schreiber]"
+    elif ergebnis.get("schreiber") == 1:
+        zusatz = "  [nur 1 Schreiber - Gegenprobe fehlt]"
+    gegen = ergebnis.get("gegenprobe") or {}
+    if gegen.get("ok") is False:
+        zusatz += (f"  [Chronik unvollständig: {gegen.get('anzahl_fehlen')} "
+                   f"Aufrufe fehlen]")
+    print(f"  ✓ {ergebnis['titel']} → {_kurz(ergebnis['kapitel'])}{zusatz}")
+
+
+def befehl_kapitel(args) -> int:
+    if args.faellig:
+        offen = chronik.kapitel_faellig(min_aufrufe=args.min_aufrufe)
+        if not offen:
+            print("Kein Kapitel fällig.")
+            return 0
+        print(f"{len(offen)} Kapitel fällig.")
+        for eintrag in offen[: args.grenze]:
+            ergebnis = _kapitel_machen(eintrag["sitzung"], args)
+            if ergebnis.get("ok") and not args.trocken:
+                _kapitel_melden(ergebnis)
+                karte.bauen(Path(ergebnis["projekt"]))
+            elif args.trocken:
+                print(f"  (trocken) {eintrag['sitzung'][:8]} — "
+                      f"{ergebnis.get('zeichen')} Zeichen Anfrage")
+            else:
+                print(f"  ✗ {eintrag['sitzung'][:8]}: {ergebnis.get('grund')}",
+                      file=sys.stderr)
+        return 0
+    if not args.sitzung:
+        print("Entweder --sitzung <id> oder --faellig.", file=sys.stderr)
+        return 2
+    ergebnis = _kapitel_machen(args.sitzung, args)
+    if args.trocken:
+        print(ergebnis.get("anfrage", ergebnis.get("grund", "")))
+        return 0 if ergebnis.get("ok") else 1
+    if not ergebnis.get("ok"):
+        print(ergebnis.get("grund"), file=sys.stderr)
+        return 1
+    _kapitel_melden(ergebnis)
+    karte.bauen(Path(ergebnis["projekt"]))
+    return 0
+
+
+def befehl_wo(args) -> int:
+    """Dreistufig nachschlagen: Regal, Fach, Inhalt.
+
+    Liste 1 entsteht aus zwei Quellen: dem Namen des Regals und seinem Inhalt.
+    Nur ueber den Namen zu gehen wuerde bedeuten, dass man nur findet, wessen
+    Regal man schon kennt.
+    """
+    hier = projektwurzel(None)
+    hier_pfad = str(hier.resolve())
+
+    nach_name = regalwart.regal_finden(args.begriff, hier=hier)
+    alle_treffer = suche.finden(args.begriff, grenze=400)
+
+    regale = regalwart.laden().get("regale", {})
+    name_zu_pfad = {e["name"]: pf for pf, e in regale.items()}
+
+    # Inhaltstreffer je Regal zusammenzaehlen
+    inhalt: dict[str, list[dict]] = {}
+    for tr in alle_treffer:
+        pfad = name_zu_pfad.get(tr["projekt"])
+        if pfad:
+            inhalt.setdefault(pfad, []).append(tr)
+
+    kandidaten: dict[str, dict] = {}
+    for r in nach_name:
+        kandidaten[r["pfad"]] = {**r, "inhaltstreffer": 0}
+    for pfad, treffer in inhalt.items():
+        eintrag = regale.get(pfad, {})
+        vorhanden = kandidaten.get(pfad)
+        beste = max(t["punkte"] for t in treffer)
+        punkte = min(beste, 95) + min(len(treffer), 12) * 1.5
+        if pfad == hier_pfad or hier_pfad.startswith(pfad + "/"):
+            punkte += 25
+        if vorhanden:
+            vorhanden["punkte"] += punkte / 2
+            vorhanden["inhaltstreffer"] = len(treffer)
+        else:
+            kandidaten[pfad] = {
+                "pfad": pfad, "name": eintrag.get("name", Path(pfad).name),
+                "gruppe": eintrag.get("gruppe", ""),
+                "zweck": eintrag.get("zweck", ""),
+                "punkte": punkte, "inhaltstreffer": len(treffer),
+                "grund": f"{len(treffer)} Stellen im Inhalt",
+                "verwechselbar_mit": [Path(x).name for x in
+                                      eintrag.get("verwechselbar_mit", [])],
+                "faecher": eintrag.get("faecher", []),
+            }
+
+    gereiht = sorted(kandidaten.values(), key=lambda r: -r["punkte"])
+    print(f'Gesucht: "{args.begriff}"')
+    print()
+    print("LISTE 1 \u2014 Regal (welches Projekt)")
+    if not gereiht:
+        print("   kein Regal passt. Steht das Regal schon? \u2192 landkarte regal")
+        return 1
+    for r in gereiht[: args.grenze]:
+        marke = "   \u2190 du arbeitest hier" if r["pfad"] == hier_pfad else ""
+        print(f"   [{r['gruppe'] or '?'}] {r['name']}{marke}")
+        hinweis = r["grund"]
+        if r.get("inhaltstreffer") and "Inhalt" not in hinweis:
+            hinweis += f", {r['inhaltstreffer']} Stellen im Inhalt"
+        print(f"       {_kurz(r['pfad'])}  ({hinweis})")
+        if r["verwechselbar_mit"]:
+            print(f"       nicht verwechseln mit: "
+                  f"{', '.join(r['verwechselbar_mit'])}")
+
+    ziel = gereiht[0]
+    print()
+    print(f"LISTE 2 \u2014 Fach in {ziel['name']} (welcher Teil)")
+    # Faecher nach Inhaltstreffern ordnen, sonst nach Namen
+    fach_treffer: dict[str, int] = {}
+    for tr in inhalt.get(ziel["pfad"], []):
+        rest = tr["ort"].replace(ziel["pfad"] + "/", "")
+        fach = rest.split("/")[0] if "/" in rest else "(Wurzel)"
+        fach_treffer[fach] = fach_treffer.get(fach, 0) + 1
+    faecher = regalwart.fach_finden(ziel["pfad"], args.begriff)
+    faecher.sort(key=lambda f: (-fach_treffer.get(f["name"], 0),
+                                -f.get("punkte", 0), -f.get("symbole", 0)))
+    if not faecher:
+        print("   keine F\u00e4cher verzeichnet")
+    for f in faecher[:8]:
+        anzahl = fach_treffer.get(f["name"], 0)
+        marke = f"  \u2190 {anzahl} Treffer" if anzahl else ""
+        beschreibung = f" \u2014 {f['zweck']}" if f.get("zweck") else ""
+        print(f"   {f['name']}/  ({f['dateien']} Dateien, "
+              f"{f.get('symbole',0)} Symbole){beschreibung}{marke}")
+
+    print()
+    print("LISTE 3 \u2014 Inhalt (die genaue Stelle)")
+    treffer = inhalt.get(ziel["pfad"]) or alle_treffer
+    if not treffer:
+        print("   keine Stelle gefunden. Vielleicht Begriff k\u00fcrzer fassen.")
+    for tr in treffer[:20]:
+        ort = tr["ort"].replace(str(konfig.HEIM), "~")
+        print(f"   {tr['art']:<12} {ort}")
+        if tr["text"] and tr["text"] not in ort:
+            print(f"   {'':<12} {tr['text'][:110]}")
+    if len(treffer) > 20:
+        print(f"   \u2026 {len(treffer) - 20} weitere")
+    return 0
+
+
+def befehl_regale(args) -> int:
+    zustand = regalwart.laden()
+    regale = [e for e in zustand.get("regale", {}).values()
+              if not e.get("verschwunden")]
+    if not regale:
+        print("Keine Regale beschriftet. → landkarte regal")
+        return 1
+    gruppen: dict[str, list[dict]] = {}
+    for e in regale:
+        gruppen.setdefault(e.get("gruppe") or "Sonstiges", []).append(e)
+    for gruppe in sorted(gruppen):
+        print(f"{gruppe}")
+        for e in sorted(gruppen[gruppe], key=lambda x: x["name"]):
+            print(f"   {e['name']:<28} {_kurz(e['pfad'])}")
+            if e.get("aliase"):
+                print(f"   {'':<28} auch: {', '.join(e['aliase'][:6])}")
+            if e.get("verwechselbar_mit"):
+                print(f"   {'':<28} ACHTUNG ähnlich: "
+                      f"{', '.join(Path(x).name for x in e['verwechselbar_mit'])}")
+            if args.faecher:
+                for f in e.get("faecher", [])[:10]:
+                    print(f"   {'':<28}   {f['name']}/ ({f['dateien']})")
+        print()
+    if regalwart.JOURNAL.exists() and args.journal:
+        print("--- Journal ---")
+        print(regalwart.JOURNAL.read_text("utf-8")[-3000:])
+    return 0
+
+
+def befehl_korrigieren(args) -> int:
+    wurzel = projektwurzel(args.projekt)
+    ziel = korrektur.anlegen(wurzel, args.falsch, args.richtig, args.grund or "")
+    print(f"Berichtigung vermerkt → {_kurz(ziel)}")
+    if (wurzel / "KARTE.md").exists():
+        karte.bauen(wurzel)
+        print("KARTE.md neu gesetzt — der falsche Satz ist jetzt durchgestrichen")
+    return 0
+
+
+def befehl_protokoll(args) -> int:
+    """Das Spruchbuch des Schiedsrichters lesen."""
+    if not pruefer.SPRUCHBUCH.exists():
+        print("Noch kein Schiedsspruch protokolliert.")
+        return 1
+    saetze = []
+    for zeile in pruefer.SPRUCHBUCH.read_text("utf-8").splitlines():
+        if not zeile.strip():
+            continue
+        try:
+            saetze.append(json.loads(zeile))
+        except json.JSONDecodeError:
+            continue
+    if args.sitzung:
+        saetze = [s for s in saetze if s.get("sitzung", "").startswith(args.sitzung)]
+    print(f"{len(saetze)} Schiedssprüche in "
+          f"{_kurz(pruefer.SPRUCHBUCH)} (nur angehängt, nie überschrieben)")
+    print()
+    for s in saetze[-args.grenze:]:
+        arten = {}
+        for a in s.get("abweichungen", []):
+            arten[a["art"]] = arten.get(a["art"], 0) + 1
+        inhaltlich = sum(n for k, n in arten.items() if k != "formulierung")
+        print(f"{s.get('lauf')}  {Path(s.get('projekt','')).name}  "
+              f"{s.get('sitzung','')[:8]}")
+        print(f"   Protokollfassung {s.get('protokollfassung')} "
+              f"({s.get('protokoll_zeichen')} Zeichen) · "
+              f"{s.get('schreiber_geantwortet')} Schreiber · "
+              f"Textgleichheit {s.get('uebereinstimmung')}")
+        print(f"   {inhaltlich} inhaltliche Abweichungen "
+              f"{dict(arten) if arten else ''}")
+        if args.ausfuehrlich:
+            for a in s.get("abweichungen", []):
+                print(f"      {a['art']:<12} {a['position']:<6} "
+                      f"{a['beschreibung'][:120]}")
+        print()
+
+    nach = pruefer._nach_fassung(args.tage)
+    if nach:
+        print("Entwicklung nach Protokollfassung "
+              "(weniger inhaltliche Abweichungen = besseres Protokoll):")
+        for f in nach:
+            print(f"   {f['fassung']}  {f['laeufe']:>3} Läufe  "
+                  f"{f['inhaltliche_abweichungen_je_lauf']:>5} Abw./Lauf  "
+                  f"Textgleichheit {f['uebereinstimmung_mittel']}  "
+                  f"ab {f['zuerst']}")
+    return 0
+
+
+def befehl_abweichungen(args) -> int:
+    ergebnis = pruefer.abweichungen_auswerten(args.tage)
+    print(f"{ergebnis['gesamt']} Abweichungen in {args.tage} Tagen")
+    for art, anzahl in sorted((ergebnis.get("arten") or {}).items(),
+                              key=lambda kv: -kv[1]):
+        print(f"  {anzahl:>4}x {art}")
+    if ergebnis.get("hinweise"):
+        print("\nHäufungen — hier muss korrigiert werden:")
+        for h in ergebnis["hinweise"]:
+            print(f"  {h['anzahl']}x {h['art']} → {h['stelle']}")
+            print(f"     {h['massnahme']}")
+    if ergebnis.get("schieflage"):
+        s = ergebnis["schieflage"]
+        print(f"\n  ACHTUNG Positionsvorliebe: "
+              f"{round(s['anteil_erste']*100)} % an die erste Fassung "
+              f"({s['entschieden']} Entscheidungen)")
+    return 0
+
+
+def befehl_pruefen(args) -> int:
+    if args.sitzung:
+        ergebnis = pruefer.chronik_gegenpruefen(args.sitzung)
+        print(json.dumps(ergebnis, ensure_ascii=False, indent=1))
+        return 0 if ergebnis.get("ok") is not False else 1
+    if args.pfad:
+        maengel = pruefer.karte_zusicherungen(projektwurzel(args.pfad))
+        if not maengel:
+            print("Zusicherungen erfüllt.")
+            return 0
+        for m in maengel:
+            print(f"  {m['schwere']:<7} {m['befund']} — {m['ort']}")
+        return 1
+    ergebnis = pruefer.vollpruefung()
+    schwer = [b for b in ergebnis["befunde"] if b["schwere"] == "schwer"]
+    leicht = [b for b in ergebnis["befunde"] if b["schwere"] != "schwer"]
+    print(f"{len(schwer)} schwere, {len(leicht)} leichte Befunde, "
+          f"{len(ergebnis['gegenproben'])} Sitzungen mit lückenhafter Chronik")
+    for b in schwer + leicht:
+        print(f"  {b['schwere']:<7} [{b['projekt']}] {b['befund']} — {b['ort']}")
+    for g in ergebnis["gegenproben"]:
+        print(f"  chronik [{g['sitzung'][:8]}] {g['anzahl_fehlen']} von "
+              f"{g['transkript']} Aufrufen fehlen — {g.get('fehlende_werkzeuge')}")
+    return 1 if (schwer or ergebnis["gegenproben"]) else 0
+
+
+def befehl_aufsicht(args) -> int:
+    ergebnis = aufseher.bericht(mit_modell=not args.ohne_modell, zurueck=args.tage,
+                                doppelt=not args.einfach)
+    print(f"{_kurz(ergebnis['werkstatt'])} geschrieben")
+    if args.zeigen:
+        print()
+        print(Path(ergebnis["werkstatt"]).read_text("utf-8"))
+    return 0
+
+
+def befehl_mindmap(args) -> int:
+    wurzel = projektwurzel(args.pfad)
+    karte_json = wurzel / ".landkarte" / "karte.json"
+    if not karte_json.exists():
+        karte.bauen(wurzel)
+    modell = json.loads(karte_json.read_text("utf-8"))
+    ziel = mindmap.bauen(modell, wurzel / ".landkarte" / "mindmap.html")
+    print(_kurz(ziel))
+    if args.oeffnen:
+        subprocess.run(["open", str(ziel)], check=False)
+    return 0
+
+
+def befehl_mermaid(args) -> int:
+    wurzel = projektwurzel(args.pfad)
+    karte_json = wurzel / ".landkarte" / "karte.json"
+    if not karte_json.exists():
+        karte.bauen(wurzel)
+    print(mindmap.mermaid(json.loads(karte_json.read_text("utf-8"))))
+    return 0
+
+
+def befehl_symbole(args) -> int:
+    ziel = Path(args.datei).expanduser()
+    wurzel = projektwurzel(str(ziel.parent))
+    karte_json = wurzel / ".landkarte" / "karte.json"
+    if not karte_json.exists():
+        karte.bauen(wurzel)
+    modell = json.loads(karte_json.read_text("utf-8"))
+    rel = str(ziel.resolve()).replace(str(wurzel) + "/", "") if ziel.exists() \
+        else args.datei
+    gefunden = False
+    for d in modell["dateien"]:
+        if d["pfad"] == rel or d["pfad"].endswith("/" + rel) or rel in d["pfad"]:
+            gefunden = True
+            print(f"{d['pfad']}  ({d['zeilen']} Zeilen)")
+            if d.get("zweck"):
+                print(f"  {d['zweck']}")
+            for s in d.get("symbole", []):
+                print(f"  {s['zeile']:>5}  {s['art']} {s['name']}")
+            print()
+    return 0 if gefunden else 1
+
+
+def befehl_zeig(args) -> int:
+    wurzel = projektwurzel(args.pfad)
+    p = wurzel / "KARTE.md"
+    if not p.exists():
+        print(f"Keine Karte in {_kurz(wurzel)}. → landkarte scan", file=sys.stderr)
+        return 1
+    print(p.read_text("utf-8"))
+    return 0
+
+
+def befehl_chronik_eintrag(args) -> int:
+    """Rückfall, wenn jq fehlt: Hook-JSON von stdin in die Chronik schreiben."""
+    if os.environ.get("LANDKARTE_SCHREIBER"):
+        return 0
+    try:
+        roh = json.load(sys.stdin)
+    except (json.JSONDecodeError, ValueError):
+        return 0
+    eingabe = roh.get("tool_input") or {}
+    ziel = (eingabe.get("file_path") or eingabe.get("path")
+            or eingabe.get("command") or eingabe.get("pattern") or "")
+    eintrag = {
+        "t": int(time.time()),
+        "s": roh.get("session_id", ""),
+        "i": roh.get("tool_use_id", ""),
+        "p": roh.get("cwd", ""),
+        "w": roh.get("tool_name", ""),
+        "d": str(ziel)[:300],
+        "ms": roh.get("duration_ms"),
+    }
+    if roh.get("error"):
+        eintrag["f"] = str(roh["error"])[:600]
+    chronik.CHRONIK.mkdir(parents=True, exist_ok=True)
+    datei = chronik.CHRONIK / (datetime.now().strftime("%Y-%m-%d") + ".jsonl")
+    with datei.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(eintrag, ensure_ascii=False) + "\n")
+    return 0
+
+
+def befehl_nachtragen(args) -> int:
+    ergebnis = nachtrag.nachtragen(args.tage, args.grenze)
+    print(f"{ergebnis['protokolle']} Protokolle gelesen, "
+          f"{ergebnis['sitzungen']} mit Werkzeugaufrufen")
+    print(f"{ergebnis['neu']} Einträge nachgetragen über {ergebnis['tage']} Tage, "
+          f"{ergebnis['schon_vorhanden']} waren schon da")
+    if ergebnis["neu"]:
+        print("Diese Einträge sind mit q=transkript gekennzeichnet und "
+              "bestätigen die Gegenprobe des Chronisten nicht.")
+    return 0
+
+
+def befehl_schwaerzen(args) -> int:
+    """Zugangsdaten aus bereits geschriebenen Chronikdateien entfernen.
+
+    Die Chronik wird sonst nur angehängt. Hier wird sie ausnahmsweise
+    umgeschrieben, weil ein Passwort im Klartext schwerer wiegt als die
+    Unveränderlichkeit - die Urfassung geht in den Papierkorb, nicht weg.
+    """
+    dateien = sorted(chronik.CHRONIK.glob("*.jsonl"))
+    if not dateien:
+        print("Keine Chronikdateien.")
+        return 1
+    papierkorb = (konfig.HEIM / ".Papierkorb-Claude" /
+                  f"landkarte-chronik-vor-schwaerzung-{date.today().isoformat()}")
+    geaendert = 0
+    betroffen: list[str] = []
+    for datei in dateien:
+        zeilen = datei.read_text("utf-8", errors="replace").splitlines()
+        neu: list[str] = []
+        treffer = 0
+        for zeile in zeilen:
+            if not zeile.strip():
+                continue
+            try:
+                e = json.loads(zeile)
+            except json.JSONDecodeError:
+                neu.append(zeile)
+                continue
+            vorher = (e.get("d") or "") + "\x00" + (e.get("f") or "")
+            _schw.eintrag_schwaerzen(e)
+            nachher = (e.get("d") or "") + "\x00" + (e.get("f") or "")
+            if vorher != nachher:
+                treffer += 1
+            neu.append(json.dumps(e, ensure_ascii=False))
+        if not treffer:
+            continue
+        betroffen.append(f"{datei.name}: {treffer} Zeilen")
+        geaendert += treffer
+        if not args.probe:
+            papierkorb.mkdir(parents=True, exist_ok=True)
+            (papierkorb / datei.name).write_text("\n".join(zeilen) + "\n", "utf-8")
+            datei.write_text("\n".join(neu) + "\n", "utf-8")
+    if not geaendert:
+        print("Keine Zugangsdaten in der Chronik gefunden.")
+        return 0
+    for b in betroffen:
+        print("  " + b)
+    if args.probe:
+        print(f"{geaendert} Zeilen würden geschwärzt. Ohne --probe ausführen.")
+    else:
+        print(f"{geaendert} Zeilen geschwärzt. Urfassung in {_kurz(papierkorb)}")
+    return 0
+
+
+def befehl_status(args) -> int:
+    konf = konfig.laden()
+    print("LANDKARTE")
+    print(f"  Ablage:   {_kurz(konfig.LK_HEIM)}")
+    tage = chronik.tage(30)
+    zeilen = 0
+    for p in tage:
+        try:
+            zeilen += sum(1 for _ in p.open("r", encoding="utf-8", errors="replace"))
+        except OSError:
+            pass
+    print(f"  Chronik:  {len(tage)} Tage, {zeilen} Einträge (30 Tage)")
+    faellig = chronik.kapitel_faellig()
+    print(f"  Kapitel:  {len(faellig)} fällig")
+    if konfig.REGISTER.exists():
+        reg = json.loads(konfig.REGISTER.read_text("utf-8"))
+        print(f"  Regal:    {reg['anzahl']} Projekte, gebaut "
+              f"{datetime.fromtimestamp(reg['gebaut']).strftime('%Y-%m-%d %H:%M')}")
+        veraltet = []
+        for p in reg["projekte"]:
+            k = Path(p["wurzel"]) / "KARTE.md"
+            if not k.exists():
+                veraltet.append(p["name"] + " (fehlt)")
+        if veraltet:
+            print("  fehlend:  " + ", ".join(veraltet[:8]))
+    else:
+        print("  Regal:    noch nicht gebaut → landkarte regal")
+    if aufseher.WERKSTATT.exists():
+        print(f"  Werkstatt: {_kurz(aufseher.WERKSTATT)} "
+              f"({datetime.fromtimestamp(aufseher.WERKSTATT.stat().st_mtime).strftime('%Y-%m-%d')})")
+    hier = projektwurzel(None)
+    print(f"\n  hier:     {_kurz(hier)}")
+    print(f"  Karte:    {'ja' if (hier/'KARTE.md').exists() else 'nein'}")
+    return 0
+
+
+def befehl_dienst(args) -> int:
+    """Nächtlichen Bibliothekar und wöchentlichen Aufseher als launchd-Dienst.
+
+    ~/Library wird nur auf ausdrückliche Anweisung angefasst - deshalb ist das
+    ein eigener Befehl und kein Teil von `einrichten`.
+    """
+    eigen = Path(__file__).resolve().parent.parent
+    quelle = eigen / "dienste"
+    ziel_ordner = konfig.HEIM / "Library" / "LaunchAgents"
+
+    plists = sorted(quelle.glob("*.plist"))
+    if not plists:
+        print("Keine Dienstdateien gefunden.", file=sys.stderr)
+        return 1
+
+    if args.zeigen:
+        for p in plists:
+            print(f"--- {p.name}")
+            print(p.read_text("utf-8").replace("LANDKARTE", str(eigen))
+                  .replace("HEIM", str(konfig.HEIM)))
+        print(f"Ziel: {_kurz(ziel_ordner)}")
+        print("Einbauen mit:  landkarte dienst --einbauen")
+        return 0
+
+    if not args.einbauen and not args.ausbauen:
+        print("Was die Dienste tun:")
+        print("  de.jan.landkarte.regal     täglich 03:15 — Chronik nachtragen, "
+              "alle Projekte scannen, Regal neu sortieren")
+        print("  de.jan.landkarte.aufsicht  montags 07:30 — Werkstattbericht "
+              "(nutzt ein Sprachmodell, zwei Aufseher plus Schiedsrichter)")
+        print()
+        print(f"Sie würden nach {_kurz(ziel_ordner)} geschrieben.")
+        print("Anzeigen:  landkarte dienst --zeigen")
+        print("Einbauen:  landkarte dienst --einbauen")
+        return 0
+
+    if not ziel_ordner.is_dir():
+        print(f"{ziel_ordner} fehlt.", file=sys.stderr)
+        return 1
+
+    for p in plists:
+        ziel = ziel_ordner / p.name
+        kennung = p.stem
+        if args.ausbauen:
+            subprocess.run(["launchctl", "unload", str(ziel)], check=False,
+                           capture_output=True)
+            if ziel.exists():
+                papierkorb = konfig.HEIM / ".Papierkorb-Claude" / "landkarte-dienste"
+                papierkorb.mkdir(parents=True, exist_ok=True)
+                ziel.rename(papierkorb / p.name)
+                print(f"ausgebaut: {kennung} (Datei in {_kurz(papierkorb)})")
+            continue
+        inhalt = (p.read_text("utf-8")
+                  .replace("LANDKARTE", str(eigen))
+                  .replace("HEIM", str(konfig.HEIM)))
+        ziel.write_text(inhalt, "utf-8")
+        subprocess.run(["launchctl", "unload", str(ziel)], check=False,
+                       capture_output=True)
+        ergebnis = subprocess.run(["launchctl", "load", str(ziel)],
+                                  capture_output=True, text=True)
+        if ergebnis.returncode == 0:
+            print(f"eingebaut und geladen: {kennung}")
+        else:
+            print(f"eingebaut, Laden fehlgeschlagen: {kennung} — "
+                  f"{(ergebnis.stderr or '').strip()}", file=sys.stderr)
+    return 0
+
+
+def befehl_einrichten(args) -> int:
+    konfig.LK_HEIM.mkdir(parents=True, exist_ok=True)
+    chronik.CHRONIK.mkdir(parents=True, exist_ok=True)
+    chronik.SITZUNGEN.mkdir(parents=True, exist_ok=True)
+    konfig.PROJEKT_CACHE.mkdir(parents=True, exist_ok=True)
+    if not konfig.KONFIG_DATEI.exists():
+        konfig.schreiben(konfig.STANDARD)
+        print(f"Konfiguration angelegt: {_kurz(konfig.KONFIG_DATEI)}")
+    else:
+        print(f"Konfiguration vorhanden: {_kurz(konfig.KONFIG_DATEI)}")
+
+    eigen = Path(__file__).resolve().parent.parent / "bin" / "landkarte"
+    ziel = konfig.HEIM / ".local" / "bin" / "landkarte"
+    ziel.parent.mkdir(parents=True, exist_ok=True)
+    if ziel.is_symlink() or ziel.exists():
+        if ziel.resolve() != eigen:
+            ziel.unlink()
+            ziel.symlink_to(eigen)
+            print(f"Verknüpfung erneuert: {_kurz(ziel)} → {_kurz(eigen)}")
+        else:
+            print(f"Verknüpfung vorhanden: {_kurz(ziel)}")
+    else:
+        ziel.symlink_to(eigen)
+        print(f"Verknüpfung angelegt: {_kurz(ziel)} → {_kurz(eigen)}")
+    print("\nNächster Schritt:  landkarte regal")
+    return 0
+
+
+# ------------------------------------------------------------------- Zerleger
+
+
+def zerleger() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="landkarte",
+        description="Inhaltsverzeichnis, Spickzettel, Fallenprotokoll und "
+                    "Mindmap für alle Projekte.")
+    u = p.add_subparsers(dest="befehl", required=True)
+
+    s = u.add_parser("scan", help="ein Projekt scannen und KARTE.md setzen")
+    s.add_argument("pfad", nargs="?")
+    s.add_argument("--mindmap", action="store_true", help="Mindmap mitbauen")
+    s.set_defaults(fn=befehl_scan)
+
+    s = u.add_parser("regal", aliases=["alle"], help="alle Projekte, Regal bauen")
+    s.add_argument("--ohne-scan", action="store_true",
+                   help="nur neu sortieren, nicht neu scannen")
+    s.set_defaults(fn=befehl_regal)
+
+    s = u.add_parser("digest", help="kompakter Auszug (für den Hook)")
+    s.add_argument("pfad", nargs="?")
+    s.set_defaults(fn=befehl_digest)
+
+    s = u.add_parser("finde", aliases=["such"], help="über alle Projekte suchen")
+    s.add_argument("begriff")
+    s.add_argument("--projekt")
+    s.set_defaults(fn=befehl_finde)
+
+    s = u.add_parser("notiz", help="Falle, Regel, Zugang oder offenen Punkt festhalten")
+    s.add_argument("text")
+    s.add_argument("--art", default="falle",
+                   help="falle (Standard), regel, zugang, offen")
+    s.add_argument("--projekt", help="Projektordner, Standard: hier")
+    s.set_defaults(fn=befehl_notiz)
+
+    s = u.add_parser("kapitel", help="Sitzung zu einem Buchkapitel verarbeiten")
+    s.add_argument("--sitzung")
+    s.add_argument("--faellig", action="store_true")
+    s.add_argument("--modell")
+    s.add_argument("--trocken", action="store_true", help="nur die Anfrage zeigen")
+    s.add_argument("--grenze", type=int, default=5)
+    s.add_argument("--min-aufrufe", type=int, default=8, dest="min_aufrufe")
+    s.add_argument("--einfach", action="store_true",
+                   help="nur ein Schreiber statt Zwillingen")
+    s.set_defaults(fn=befehl_kapitel)
+
+    s = u.add_parser("wo", help="dreistufig nachschlagen: Regal, Fach, Inhalt")
+    s.add_argument("begriff")
+    s.add_argument("--grenze", type=int, default=5)
+    s.set_defaults(fn=befehl_wo)
+
+    s = u.add_parser("regale", help="Regalbeschriftung: Gruppen, Aliase, Fächer")
+    s.add_argument("--faecher", action="store_true")
+    s.add_argument("--journal", action="store_true")
+    s.set_defaults(fn=befehl_regale)
+
+    s = u.add_parser("korrigieren", aliases=["berichtigen"],
+                     help="falsches Wissen richtigstellen, Original bleibt")
+    s.add_argument("falsch", help="der falsche Satz (Teil genügt)")
+    s.add_argument("richtig", help="wie es richtig ist")
+    s.add_argument("--grund")
+    s.add_argument("--projekt")
+    s.set_defaults(fn=befehl_korrigieren)
+
+    s = u.add_parser("protokoll",
+                     help="Spruchbuch des Schiedsrichters lesen")
+    s.add_argument("--sitzung")
+    s.add_argument("--grenze", type=int, default=10)
+    s.add_argument("--tage", type=int, default=365)
+    s.add_argument("--ausfuehrlich", action="store_true")
+    s.set_defaults(fn=befehl_protokoll)
+
+    s = u.add_parser("abweichungen", help="Strichliste der Schreiber-Abweichungen")
+    s.add_argument("--tage", type=int, default=120)
+    s.set_defaults(fn=befehl_abweichungen)
+
+    s = u.add_parser("pruefen", help="Zusicherungen und Chronik-Gegenprobe")
+    s.add_argument("pfad", nargs="?", help="nur dieses Projekt")
+    s.add_argument("--sitzung", help="nur die Gegenprobe dieser Sitzung")
+    s.set_defaults(fn=befehl_pruefen)
+
+    s = u.add_parser("aufsicht", help="Zustand der Bibliothek prüfen")
+    s.add_argument("--ohne-modell", action="store_true", dest="ohne_modell")
+    s.add_argument("--tage", type=int, default=30)
+    s.add_argument("--zeigen", action="store_true")
+    s.add_argument("--einfach", action="store_true",
+                   help="nur ein Aufseher statt Zwillingen")
+    s.set_defaults(fn=befehl_aufsicht)
+
+    s = u.add_parser("mindmap", help="HTML-Mindmap bauen")
+    s.add_argument("pfad", nargs="?")
+    s.add_argument("--oeffnen", action="store_true")
+    s.set_defaults(fn=befehl_mindmap)
+
+    s = u.add_parser("mermaid", help="Graph als Mermaid-Text")
+    s.add_argument("pfad", nargs="?")
+    s.set_defaults(fn=befehl_mermaid)
+
+    s = u.add_parser("symbole", help="Symbole einer Datei")
+    s.add_argument("datei")
+    s.set_defaults(fn=befehl_symbole)
+
+    s = u.add_parser("zeig", help="KARTE.md ausgeben")
+    s.add_argument("pfad", nargs="?")
+    s.set_defaults(fn=befehl_zeig)
+
+    s = u.add_parser("chronik-eintrag", help="Hook-Rückfall ohne jq")
+    s.set_defaults(fn=befehl_chronik_eintrag)
+
+    s = u.add_parser("schwaerzen",
+                     help="Zugangsdaten aus bestehenden Chronikdateien entfernen")
+    s.add_argument("--probe", action="store_true", help="nur zeigen")
+    s.set_defaults(fn=befehl_schwaerzen)
+
+    s = u.add_parser("nachtragen",
+                     help="Chronik rückwirkend aus Sitzungsprotokollen füllen")
+    s.add_argument("--tage", type=int, default=365)
+    s.add_argument("--grenze", type=int, help="nur die neuesten N Protokolle")
+    s.set_defaults(fn=befehl_nachtragen)
+
+    s = u.add_parser("status", help="Überblick")
+    s.set_defaults(fn=befehl_status)
+
+    s = u.add_parser("dienst",
+                     help="nächtlicher Bibliothekar und wöchentlicher Aufseher")
+    s.add_argument("--zeigen", action="store_true")
+    s.add_argument("--einbauen", action="store_true")
+    s.add_argument("--ausbauen", action="store_true")
+    s.set_defaults(fn=befehl_dienst)
+
+    s = u.add_parser("einrichten", help="Ablage anlegen und verknüpfen")
+    s.set_defaults(fn=befehl_einrichten)
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = zerleger().parse_args(argv)
+    try:
+        return args.fn(args)
+    except BrokenPipeError:
+        return 0
+    except KeyboardInterrupt:
+        return 130

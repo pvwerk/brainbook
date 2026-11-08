@@ -1,0 +1,13 @@
+{
+  "name": "jan-werkzeuge",
+  "description": "Eigene Werkzeuge von Jan Hartkämper für Claude Code.",
+  "owner": { "name": "Jan Hartkämper" },
+  "plugins": [
+    {
+      "name": "landkarte",
+      "source": "./landkarte",
+      "description": "Kartografiert alle Projekte und schreibt mit, was gemacht wurde: Inhaltsverzeichnis, Spickzettel, Fallenprotokoll, Buch und Mindmap.",
+      "category": "wissen"
+    }
+  ]
+}

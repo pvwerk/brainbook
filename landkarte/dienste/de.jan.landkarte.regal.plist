@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>              <string>de.jan.landkarte.regal</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-lc</string>
+    <string>LANDKARTE/bin/landkarte nachtragen --tage 7 &amp;&amp; LANDKARTE/bin/landkarte regal</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>   <integer>3</integer>
+    <key>Minute</key> <integer>15</integer>
+  </dict>
+  <key>StandardOutPath</key>    <string>HEIM/.landkarte/dienst-regal.log</string>
+  <key>StandardErrorPath</key>  <string>HEIM/.landkarte/dienst-regal.log</string>
+  <key>RunAtLoad</key>          <false/>
+  <key>Nice</key>               <integer>5</integer>
+</dict>
+</plist>

@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Von der Landkarte erzeugt und jederzeit neu baubar
+.landkarte/karte.json
+.landkarte/symbole.md
+.landkarte/mindmap.html
+
+# Mitgenommen wird dagegen alles Handgeschriebene und Erarbeitete:
+# KARTE.md, .landkarte/notizen.md, .landkarte/buch/, .landkarte/korrekturen.jsonl
