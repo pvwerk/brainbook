@@ -618,6 +618,174 @@ def _pruef_karte() -> dict:
                    hart=False)
 
 
+def _pruef_tresor() -> dict:
+    """Der Tresor muss wirklich verschluesseln und Manipulation bemerken.
+
+    Geprueft wird in einem Wegwerf-Heim: ablegen, wiederfinden, und dass der
+    Klartext nirgends auf der Platte steht. Dazu die Gegenprobe - ein
+    veraenderter Geheimtext darf nicht entschluesselt werden, sonst waere der
+    Tresor eine Ablage mit Deckel und kein Tresor.
+    """
+    import importlib
+    with tempfile.TemporaryDirectory(prefix="landkarte-tresor-") as ordner:
+        o = Path(ordner)
+        from . import konfig as _k, tresor as _t
+        alt_heim, alt_pfad, alt_schl, alt_dienst = (
+            _k.LK_HEIM, _t.TRESOR, _t.SCHLUESSEL_DATEI, _t.SCHLUESSELBUND_DIENST)
+        try:
+            _k.LK_HEIM = o
+            _t.TRESOR = o / "tresor.enc"
+            _t.SCHLUESSEL_DATEI = o / "tresor.schluessel"
+            # Niemals den echten Schluesselbund anfassen, auch nicht lesend.
+            _t.SCHLUESSELBUND_DIENST = "landkarte-tresor-pruefung"
+            _t._SCHLUESSEL_NUR_DATEI = True
+            _t.speicher_leeren()
+            geheim = "Pr0be-Geheim!2026"
+            name, war_neu = _t.einlegen("probe", geheim, herkunft="Pruefung")
+            if not war_neu or _t.holen(name) != geheim:
+                return _befund("Tresor", False, "Ablegen und Holen stimmen nicht ueberein")
+            roh = _t.TRESOR.read_bytes()
+            if geheim.encode() in roh:
+                return _befund("Tresor", False, "Das Geheimnis steht im Klartext in der Datei")
+            if oct(os.stat(_t.TRESOR).st_mode & 0o777) != "0o600":
+                return _befund("Tresor", False, "Die Tresordatei ist nicht auf 600")
+            if _t.einlegen("anders", geheim)[1]:
+                return _befund("Tresor", False, "Dasselbe Geheimnis wurde doppelt abgelegt")
+            # Manipulation muss auffallen
+            text = _t.TRESOR.read_text("utf-8")
+            _t.TRESOR.write_text(text.replace('"hmac": "', '"hmac": "0'), "utf-8")
+            _t.speicher_leeren()
+            try:
+                _t.laden()
+            except _t.TresorFehler:
+                pass
+            else:
+                return _befund("Tresor", False,
+                               "Veraenderter Geheimtext wurde trotzdem entschluesselt")
+            return _befund("Tresor", True)
+        finally:
+            _k.LK_HEIM, _t.TRESOR = alt_heim, alt_pfad
+            _t.SCHLUESSEL_DATEI, _t.SCHLUESSELBUND_DIENST = alt_schl, alt_dienst
+            _t._SCHLUESSEL_NUR_DATEI = False
+            _t.speicher_leeren()
+
+
+def _pruef_tresorwache() -> dict:
+    """Die Wache muss finden, was eines ist - und lassen, was keines ist.
+
+    Der zweite Teil ist der wichtigere: eine Wache, die zu viel erkennt,
+    ersetzt echten Text im Sitzungsprotokoll. Beim Bau fand eine zu lockere
+    Fassung 155 "Geheimnisse" in einem Protokoll und haette 12.788 Stellen
+    ueberschrieben - lauter UUIDs und Zeitstempel.
+    """
+    from . import tresorwache as _w
+    # Die Probewerte werden zusammengesetzt und nicht hingeschrieben: sonst
+    # stehen hier Zeichenfolgen, die wie echte Schluessel aussehen - und die
+    # Pruefung "Keine Zugangsdaten" schlaegt zu Recht auf die eigene Datei an.
+    probe_api = "sk-" + "ant-api03-" + ("AaBbCcDd" * 4)
+    probe_aws = "wJalrXUtnFEMI" + "/K7MDENG/" + "bPxRfiCYEXAMPLEKEY"
+    muss_finden = {
+        f"ANTHROPIC_API_KEY={probe_api}": probe_api,
+        "postgresql://postgres:Ge-heim!99@db.example.com:5432/x": "Ge-heim!99",
+        f"AWS_SECRET_ACCESS_KEY={probe_aws}": probe_aws,
+    }
+    for text, erwartet in muss_finden.items():
+        if erwartet not in _w.finden(text, streng=True):
+            return _befund("Tresorwache", False,
+                           f"nicht gefunden in {text[:40]!r}: erwartet {len(erwartet)} Zeichen")
+    darf_nicht = (
+        "uuid 7b77dfe6-b2e9-4a5c-b136-45369c83a867",
+        "timestamp 1794253258",
+        'SUPABASE_SERVICE_ROLE_KEY="$SB_KEY"',
+        "AWS_SECRET_ACCESS_KEY=).replace(x",
+        "sk-" + "ssh-ed25519@openssh.com-cert-v01",
+        "ANTHROPIC_API_KEY=env.example",
+        "def passwort_pruefen(passwort, gespeichert):",
+        "Das Passwort ist passwort",
+    )
+    for text in darf_nicht:
+        treffer = _w.finden(text, streng=True)
+        if treffer:
+            return _befund("Tresorwache", False,
+                           f"Fehlalarm bei {text[:42]!r}: {len(treffer)} Treffer")
+    # Im Chat darf sie raten, dort kostet ein Fehlgriff nur einen Eintrag.
+    if "Tr0ub4dor-99" not in _w.finden("Das Passwort ist Tr0ub4dor-99"):
+        return _befund("Tresorwache", False,
+                       "erkennt kein im Satz genanntes Passwort")
+    return _befund("Tresorwache", True)
+
+
+def _pruef_verlauf_bleibt_heil() -> dict:
+    """Ersetzen im Protokoll darf die Datei nicht beschaedigen.
+
+    Geprueft an einer echten .jsonl-Probe: danach muss jede Zeile weiterhin
+    gueltiges JSON sein, das Geheimnis weg, der Satz drumherum lesbar und eine
+    Kopie im Papierkorb liegen.
+    """
+    from . import tresorwache as _w
+    with tempfile.TemporaryDirectory(prefix="landkarte-verlauf-") as ordner:
+        o = Path(ordner)
+        datei = o / "probe.jsonl"
+        geheim = "Ge-heim!99"
+        zeilen = [
+            {"type": "user", "message": {"role": "user",
+             "content": f"Zugang psql postgresql://u:{geheim}@h/db und sonst nichts"}},
+            {"type": "assistant", "message": {"role": "assistant",
+             "content": "Alles klar, ich merke es mir."}},
+        ]
+        datei.write_text("\n".join(json.dumps(z, ensure_ascii=False) for z in zeilen)
+                         + "\n", "utf-8")
+        alt_korb = _w.PAPIERKORB
+        try:
+            _w.PAPIERKORB = o / "korb"
+            ergebnis = _w.verlauf_saeubern(datei, [("probe", geheim)])
+            inhalt = datei.read_text("utf-8")
+            if geheim in inhalt:
+                return _befund("Verlauf bleibt heil", False, "Geheimnis steht noch drin")
+            if "[Tresor: probe]" not in inhalt:
+                return _befund("Verlauf bleibt heil", False, "Verweis fehlt")
+            if "und sonst nichts" not in inhalt:
+                return _befund("Verlauf bleibt heil", False, "Der Satz drumherum ist weg")
+            for zeile in inhalt.splitlines():
+                if zeile.strip():
+                    json.loads(zeile)
+            if not ergebnis.get("sicherung") or not Path(ergebnis["sicherung"]).exists():
+                return _befund("Verlauf bleibt heil", False, "keine Kopie im Papierkorb")
+            return _befund("Verlauf bleibt heil", True)
+        except json.JSONDecodeError as fehler:
+            return _befund("Verlauf bleibt heil", False, f"JSON kaputt: {fehler}")
+        finally:
+            _w.PAPIERKORB = alt_korb
+
+
+def _pruef_aufgaben() -> dict:
+    """Offene Punkte werden erkannt, erledigte nicht."""
+    from . import aufgaben as _a
+    with tempfile.TemporaryDirectory(prefix="landkarte-aufgaben-") as ordner:
+        o = Path(ordner)
+        (o / "docs").mkdir()
+        (o / "docs" / "OFFEN.md").write_text(
+            "# Offene Punkte\n\n"
+            "| # | Punkt | Warum |\n|---|---|---|\n"
+            "| 1 | ~~Schon fertig~~ | **erledigt am 01.01.** |\n"
+            "| 2 | **Vorlage hochladen** | fehlt noch |\n\n"
+            "## Erledigt\n\n"
+            "| 3 | Darf nicht auftauchen | steht unter 'Erledigt' |\n\n"
+            "## Weiteres\n\n"
+            "- [ ] Haken ist offen\n"
+            "- [x] Haken ist gesetzt\n", "utf-8")
+        treffer = {a.kurz() for a in _a._aus_datei(o / "docs" / "OFFEN.md", "probe", o)}
+        fehlt = {"Vorlage hochladen", "Haken ist offen"} - treffer
+        if fehlt:
+            return _befund("Aufgaben", False, f"nicht erkannt: {fehlt}")
+        zuviel = {x for x in treffer
+                  if "Schon fertig" in x or "Haken ist gesetzt" in x
+                  or "Darf nicht auftauchen" in x}
+        if zuviel:
+            return _befund("Aufgaben", False, f"Erledigtes mitgenommen: {zuviel}")
+        return _befund("Aufgaben", True)
+
+
 PRUEFUNGEN = (
     _pruef_arbeitsbaum,
     _pruef_fassungen,
@@ -628,6 +796,10 @@ PRUEFUNGEN = (
     _pruef_installation,
     _pruef_platzanweiser,
     _pruef_signalzeilen,
+    _pruef_tresor,
+    _pruef_tresorwache,
+    _pruef_verlauf_bleibt_heil,
+    _pruef_aufgaben,
     _pruef_karte,
 )
 

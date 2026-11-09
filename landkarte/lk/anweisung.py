@@ -83,7 +83,54 @@ landkarte bb --bilanz
 ```
 
 Gezählt werden ergiebige Abfragen, nachgereichte Verzeichniseinträge und die
-Male, in denen der Platzanweiser angehalten und die Auskunft mitgegeben hat."""
+Male, in denen der Platzanweiser angehalten und die Auskunft mitgegeben hat.
+
+## Zugangsdaten gehören in den Tresor, nicht in den Text
+
+Passwörter, Token und Schlüssel werden **nie** ausgeschrieben — weder in eine
+Antwort noch in eine Datei noch in eine Befehlszeile. Sie liegen verschlüsselt
+im Tresor und werden von dort geholt:
+
+```sh
+landkarte tresor liste              was drin ist (ohne die Geheimnisse)
+landkarte tresor einlegen <name>    ablegen, Eingabe verdeckt
+landkarte tresor holen <name>       herausholen, nur zum Weiterreichen
+```
+
+Weitergereicht wird über **stdin oder eine Umgebungsvariable**, nie als
+Argument auf der Kommandozeile — dort steht es in der Prozessliste und im
+Sitzungsprotokoll:
+
+```sh
+landkarte tresor holen nas-passwort | ssh server "..."     richtig
+ssh server --password "$(landkarte tresor holen nas)"      falsch
+```
+
+Die **Tresorwache** läuft bei jeder Eingabe mit. Erkennt sie Zugangsdaten,
+legt sie diese ab und ersetzt sie im Sitzungsprotokoll durch `[Tresor: name]`.
+
+**Sie ist die einzige Stelle, die am Sitzungsprotokoll etwas ändern darf.**
+Sonst wird daran nichts gelöscht, nichts umgeschrieben, nichts gekürzt — von
+niemandem und aus keinem Grund. Wer aufräumen will, nimmt
+`landkarte tresor saeubern`; das ersetzt nur Geheimnisse und legt vorher eine
+Kopie in `~/.Papierkorb-Claude/tresorwache/`.
+
+## Offene Punkte stehen im Verzeichnis, nicht im Kopf
+
+Was nicht fertig wurde, wird aufgeschrieben — sonst ist es nach der Sitzung
+weg:
+
+```sh
+landkarte aufgaben                        alle offenen Punkte
+landkarte aufgaben eintragen "..."        einen Punkt aufnehmen
+landkarte aufgaben erledigt <kennung>     abhaken
+```
+
+Gesammelt wird aus `OFFEN.md`, `TODO.md`, unerledigten `- [ ]`-Haken und
+eigenen Einträgen. Wird ein Punkt in seiner Datei erledigt, verschwindet er
+hier von selbst. **Am Ende einer Aufgabe gehört jeder nicht fertiggestellte
+Punkt dort hinein** — ausdrücklich benannt, nicht stillschweigend liegen
+gelassen."""
 
 
 def block() -> str:

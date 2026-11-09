@@ -14,6 +14,9 @@ from pathlib import Path
 from . import aufseher, brainbook, buch, chronik, digest, karte, konfig
 from . import freigabe as _freigabe
 from . import platzanweiser
+from . import tresor as _tresor
+from . import tresorwache as _tresorwache
+from . import aufgaben as _aufgaben
 from . import mindmap, notizen
 from . import korrektur, nachtrag, pruefer, regalwart, register, scan
 from . import schwaerzen as _schw
@@ -1098,6 +1101,137 @@ def befehl_anweisung(args) -> int:
     return 0
 
 
+def _zeit(wert) -> str:
+    import datetime
+    if not wert:
+        return "-"
+    return datetime.datetime.fromtimestamp(int(wert)).strftime("%d.%m.%Y %H:%M")
+
+
+def befehl_tresor(args) -> int:
+    """Verschluesselter Tresor fuer Zugangsdaten."""
+    import getpass
+    unter = getattr(args, "unterbefehl", None) or "liste"
+    try:
+        if unter == "liste":
+            eintraege = _tresor.liste()
+            print(f"Tresor: {_tresor.TRESOR}")
+            print(f"Hauptschluessel: {_tresor.schluessel_ort()}")
+            if not eintraege:
+                print("\nNoch nichts abgelegt.")
+                return 0
+            print(f"\n{len(eintraege)} Eintrag/Eintraege (Geheimnisse werden nie angezeigt):\n")
+            for e in eintraege:
+                print(f"  {e['name']}")
+                zusatz = []
+                if e["notiz"]:
+                    zusatz.append(e["notiz"])
+                if e["herkunft"]:
+                    zusatz.append("aus: " + ", ".join(e["herkunft"][:3]))
+                zusatz.append(f"{e['laenge']} Zeichen")
+                zusatz.append(f"seit {_zeit(e['angelegt'])}")
+                print("      " + " · ".join(zusatz))
+            return 0
+
+        if unter == "einlegen":
+            geheim = args.wert
+            if not geheim:
+                if sys.stdin.isatty():
+                    geheim = getpass.getpass("Geheimnis (wird nicht angezeigt): ")
+                else:
+                    geheim = sys.stdin.read().strip()
+            name, neu_angelegt = _tresor.einlegen(
+                args.name, geheim, herkunft="von Hand", notiz=args.notiz or "")
+            print(f"{'Abgelegt' if neu_angelegt else 'War schon drin'} unter: {name}")
+            return 0
+
+        if unter == "holen":
+            wert = _tresor.holen(args.name)
+            if wert is None:
+                print(f"Kein Eintrag namens {args.name!r}.", file=sys.stderr)
+                return 1
+            # Bewusst ohne Zeilenumbruch-Dekoration: so laesst es sich
+            # weiterleiten, ohne dass es in einer Anzeige landet.
+            sys.stdout.write(wert)
+            if sys.stdout.isatty():
+                sys.stdout.write("\n")
+            return 0
+
+        if unter == "entfernen":
+            print("Entfernt." if _tresor.entfernen(args.name) else "Gab es nicht.")
+            return 0
+
+        if unter == "umbenennen":
+            ok = _tresor.umbenennen(args.name, args.neuer_name)
+            print("Umbenannt." if ok else "Ging nicht (unbekannt oder Name belegt).")
+            return 0 if ok else 1
+
+        if unter == "saeubern":
+            dateien = _tresorwache.sitzungen(args.sitzung)
+            if not dateien:
+                print("Keine Sitzungsprotokolle gefunden.")
+                return 0
+            gesamt = 0
+            geaendert = 0
+            for datei in dateien:
+                e = _tresorwache.datei_pruefen(datei, trocken=args.trocken,
+                                               auch_laufende=args.auch_laufende)
+                if e.get("uebersprungen"):
+                    print(f"  {datei.name}: ausgelassen ({e['uebersprungen']}) – "
+                          f"die Tresorwache räumt dort laufend auf")
+                    continue
+                if e.get("ersetzt"):
+                    gesamt += e["ersetzt"]
+                    geaendert += 1
+                    print(f"  {datei.name}: {e['ersetzt']}× ersetzt"
+                          + (" (Probe)" if args.trocken else ""))
+            print(f"\n{len(dateien)} Protokoll(e) geprueft, {geaendert} geaendert, "
+                  f"{gesamt} Vorkommen ersetzt.")
+            if args.trocken:
+                print("Das war eine Probe - es wurde nichts geschrieben.")
+            return 0
+
+        if unter == "protokoll":
+            eintraege = _tresorwache.protokoll()
+            if not eintraege:
+                print("Die Tresorwache hat noch nichts ersetzt.")
+                return 0
+            print("Was die Tresorwache im Verlauf ersetzt hat:\n")
+            for e in eintraege:
+                print(f"  {_zeit(e.get('zeit'))}  {e.get('ersetzt')}× "
+                      f"in {Path(e.get('datei','')).name}")
+                print(f"      Namen: {', '.join(e.get('namen', []))}")
+                print(f"      Kopie vorher: {e.get('sicherung')}")
+            return 0
+    except _tresor.TresorFehler as fehler:
+        print(f"Tresor: {fehler}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def befehl_aufgaben(args) -> int:
+    """Verzeichnis der offenen Punkte."""
+    unter = getattr(args, "unterbefehl", None) or "zeigen"
+    if unter == "eintragen":
+        a = _aufgaben.eintragen(args.text, projekt=args.projekt or "",
+                                dringlich=args.dringend)
+        print(f"Eingetragen als {a.id}.")
+        return 0
+    if unter == "erledigt":
+        ok = _aufgaben.erledigen(args.id)
+        print("Als erledigt vermerkt." if ok else "Keine offene Aufgabe mit dieser Kennung.")
+        return 0 if ok else 1
+    if args.markdown:
+        ziel = konfig.LK_HEIM / "offene-punkte.md"
+        text = _aufgaben.als_markdown(args.projekt)
+        ziel.write_text(text, encoding="utf-8")
+        print(text)
+        print(f"\nAuch abgelegt: {ziel}")
+        return 0
+    print(_aufgaben.bericht(args.projekt, grenze=args.grenze or 0))
+    return 0
+
+
 def befehl_wache(args) -> int:
     """Platzanweiser: Stand zeigen, abschalten oder von Hand befragen."""
     konf = konfig.laden()
@@ -1492,6 +1626,42 @@ def zerleger() -> argparse.ArgumentParser:
                    help="ans Ende haengen statt nach oben")
     s.add_argument("--zeigen", action="store_true", help="nur den Text ausgeben")
     s.set_defaults(fn=befehl_anweisung)
+
+    s = u.add_parser("tresor", aliases=["safe"],
+                     help="verschluesselter Tresor fuer Zugangsdaten")
+    ut = s.add_subparsers(dest="unterbefehl")
+    ut.add_parser("liste", help="zeigen, was drin ist (ohne die Geheimnisse)")
+    x = ut.add_parser("einlegen", help="ein Geheimnis ablegen")
+    x.add_argument("name")
+    x.add_argument("wert", nargs="?", help="leer lassen: wird verdeckt abgefragt")
+    x.add_argument("--notiz", default="")
+    x = ut.add_parser("holen", help="ein Geheimnis ausgeben (Vorsicht)")
+    x.add_argument("name")
+    x = ut.add_parser("entfernen"); x.add_argument("name")
+    x = ut.add_parser("umbenennen"); x.add_argument("name"); x.add_argument("neuer_name")
+    x = ut.add_parser("saeubern",
+                      help="Sitzungsprotokolle nach Geheimnissen durchsehen")
+    x.add_argument("--sitzung", help="nur dieser Projektordner unter ~/.claude/projects")
+    x.add_argument("--trocken", action="store_true", help="nur zeigen, nichts aendern")
+    x.add_argument("--auch-laufende", action="store_true",
+                   help="auch die gerade laufende Sitzung anfassen (riskant)")
+    ut.add_parser("protokoll", help="was die Tresorwache bisher ersetzt hat")
+    s.set_defaults(fn=befehl_tresor)
+
+    s = u.add_parser("aufgaben", aliases=["offen", "aufgabe"],
+                     help="Verzeichnis der offenen Punkte")
+    s.add_argument("--projekt", help="nur dieses Projekt")
+    s.add_argument("--grenze", type=int, help="hoechstens so viele zeigen")
+    s.add_argument("--markdown", action="store_true",
+                   help="als Liste schreiben nach ~/.landkarte/offene-punkte.md")
+    ua = s.add_subparsers(dest="unterbefehl")
+    x = ua.add_parser("eintragen", help="einen Punkt von Hand aufnehmen")
+    x.add_argument("text")
+    x.add_argument("--projekt", default="")
+    x.add_argument("--dringend", action="store_true")
+    x = ua.add_parser("erledigt", help="einen eingetragenen Punkt abhaken")
+    x.add_argument("id")
+    s.set_defaults(fn=befehl_aufgaben)
 
     s = u.add_parser("wache", aliases=["platzanweiser"],
                      help="Platzanweiser: Stand, abschalten, von Hand pruefen")

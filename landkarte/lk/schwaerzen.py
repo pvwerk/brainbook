@@ -143,6 +143,14 @@ def bekannte_geheimnisse(neu_laden: bool = False) -> list[str]:
                     werte.add(zeile)
             continue
         werte |= _aus_text_ziehen(inhalt)
+    # Was im Tresor liegt, wird ueberall geschwaerzt. Das schliesst den Kreis:
+    # die Tresorwache nimmt ein Geheimnis einmal auf, danach erkennt es jede
+    # Schwaerzung woertlich wieder - auch dort, wo kein Muster greift.
+    try:
+        from . import tresor as _tresor
+        werte |= {w for w in _tresor.alle_geheimnisse() if len(w) >= _MIN_LAENGE}
+    except Exception:
+        pass
     # laengste zuerst, damit Teilstuecke nicht halbe Reste stehen lassen
     _WOERTLICH = sorted(werte, key=len, reverse=True)
     return _WOERTLICH
