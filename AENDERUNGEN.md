@@ -6,6 +6,12 @@ Entwickelt wird im Original auf dem Mac; nach GitHub geht nur, was
 `landkarte freigabe --pruefen` bestanden hat. Wer eine Fassung installiert hat,
 sieht sie mit `landkarte --fassung`.
 
+## 2.0.0 — 2026-11-09
+
+Passwort-Tresor, Tresorwache und Verzeichnis der offenen Punkte
+
+- Passwort-Tresor, Tresorwache und Verzeichnis der offenen Punkte
+
 ## 1.5.1 — 2026-11-09
 
 Notizen zum Freigabeweg in die Bibliothek
