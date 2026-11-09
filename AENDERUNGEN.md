@@ -1,5 +1,11 @@
 # Änderungen
 
+## 1.2.0 — 2026-11-09
+
+Fassungen werden benannt und geprueft, bevor sie hinausgehen
+
+- Freigabe: Fassungen bewusst veroeffentlichen statt blind zu schieben
+
 Jede Zeile hier gehört zu einer Fassung, die auf GitHub liegt. Neuste oben.
 
 Entwickelt wird im Original auf dem Mac; nach GitHub geht nur, was
