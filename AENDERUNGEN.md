@@ -6,6 +6,12 @@ Entwickelt wird im Original auf dem Mac; nach GitHub geht nur, was
 `landkarte freigabe --pruefen` bestanden hat. Wer eine Fassung installiert hat,
 sieht sie mit `landkarte --fassung`.
 
+## 1.5.1 — 2026-11-09
+
+Notizen zum Freigabeweg in die Bibliothek
+
+- Drei Notizen zum Freigabeweg - die Luecke, die bb false gezeigt hat
+
 ## 1.5.0 — 2026-11-09
 
 Signalzeilen bb, Bilanz und landkarte aufnehmen
