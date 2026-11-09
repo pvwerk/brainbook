@@ -6,6 +6,12 @@ Entwickelt wird im Original auf dem Mac; nach GitHub geht nur, was
 `landkarte freigabe --pruefen` bestanden hat. Wer eine Fassung installiert hat,
 sieht sie mit `landkarte --fassung`.
 
+## 1.2.1 — 2026-11-09
+
+Fehlalarm durch Zwischenspeicher und verrutschtes Aenderungsverzeichnis behoben
+
+- Freigabe: zwei Fehler, die die erste Freigabe selbst gezeigt hat
+
 ## 1.2.0 — 2026-11-09
 
 Fassungen werden benannt und geprüft, bevor sie hinausgehen.

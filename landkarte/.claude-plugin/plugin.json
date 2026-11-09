@@ -1,7 +1,7 @@
 {
   "name": "landkarte",
   "displayName": "Landkarte",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Projektgedächtnis: Inhaltsverzeichnis, Spickzettel, Fallenprotokoll, Buch und Mindmap je Projekt. Dreistufiges Nachschlagen über das Brainbook, zwei unabhängige Schreiber mit Schiedsrichter, Testleser als Rückwärtssuche und ein kontextloses Selbstprotokoll für Rückmeldungen.",
   "author": {
     "name": "Jan Hartkämper"
