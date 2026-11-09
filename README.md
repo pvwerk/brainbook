@@ -27,6 +27,32 @@ claude plugin marketplace add pvwerk/brainbook
 claude plugin install landkarte@jan-werkzeuge
 ```
 
+## Aktualisieren
+
+Welche Fassung bei dir liegt:
+
+```sh
+landkarte --fassung
+```
+
+Was neu ist, steht in [AENDERUNGEN.md](AENDERUNGEN.md). Eine neuere Fassung
+holst du so:
+
+```sh
+claude plugin update landkarte@jan-werkzeuge      # mit Claude Code
+```
+
+Ohne Claude Code lädst du die Einzeldatei neu herunter und führst sie erneut
+aus — sie überschreibt das Werkzeug, lässt aber alles Geschriebene stehen:
+Chronik, Kapitel, Notizen, Brainbook und Protokoll liegen in `~/.landkarte`
+und werden nie angefasst.
+
+Hier wird **nicht** laufend ins Repository geschrieben. Veröffentlicht werden
+nur benannte Fassungen, die vorher jede Prüfung bestanden haben — unter anderem
+eine echte Installation in einem Wegwerf-Verzeichnis. So lässt sich sagen,
+welcher Stand bei wem liegt, und ein Fehler vermehrt sich nicht still bei
+allen.
+
 ## Was es tut
 
 Je Projekt entsteht ein Inhaltsverzeichnis `KARTE.md` mit vier Teilen:
@@ -130,5 +156,6 @@ landkarte einrichten --statistik-aus # ganz abschalten
 - [ChatGPT](landkarte/verteilen/fuer-chatgpt.md) · [Grok](landkarte/verteilen/fuer-grok.md) · [Claude Code](landkarte/verteilen/fuer-claude-code.md)
 - [Was das Werkzeug im Einzelnen kann](landkarte/README.md)
 - [Wie Rückmeldungen helfen](landkarte/verteilen/RUECKMELDUNG.md)
+- [Was sich je Fassung geändert hat](AENDERUNGEN.md)
 
 MIT-Lizenz.

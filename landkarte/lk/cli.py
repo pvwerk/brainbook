@@ -12,6 +12,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from . import aufseher, brainbook, buch, chronik, digest, karte, konfig
+from . import freigabe as _freigabe
 from . import mindmap, notizen
 from . import korrektur, nachtrag, pruefer, regalwart, register, scan
 from . import schwaerzen as _schw
@@ -757,7 +758,8 @@ def befehl_stats(args) -> int:
 
 def befehl_status(args) -> int:
     konf = konfig.laden()
-    print("LANDKARTE")
+    from . import __version__
+    print(f"LANDKARTE {__version__}")
     print(f"  Ablage:   {_kurz(konfig.LK_HEIM)}")
     tage = chronik.tage(30)
     zeilen = 0
@@ -910,11 +912,112 @@ def befehl_einrichten(args) -> int:
 # ------------------------------------------------------------------- Zerleger
 
 
+def _freigabe_stand() -> int:
+    s = _freigabe.stand()
+    print(f"Fassung hier          {s['lokal']}")
+    if s["veroeffentlicht"]:
+        gleich = "gleich" if s["gleich"] else "ABWEICHEND"
+        print(f"Fassung auf GitHub    {s['veroeffentlicht']}   ({gleich})")
+    else:
+        print(f"Fassung auf GitHub    nicht abrufbar ({s['abruf_fehler']})")
+    if s.get("kopie"):
+        print("")
+        if s["gleich"]:
+            print("Das ist eine installierte Kopie und auf dem Stand von GitHub.")
+        elif s["veroeffentlicht"]:
+            print(f"Das ist eine installierte Kopie. Auf GitHub liegt "
+                  f"{s['veroeffentlicht']} — aktualisieren mit:")
+            print("  claude plugin update landkarte@jan-werkzeuge")
+            print("  oder die Einzeldatei neu herunterladen und ausfuehren")
+        else:
+            print("Das ist eine installierte Kopie; GitHub war nicht erreichbar.")
+        return 0
+    print(f"Letzte Markierung     {s['letzter_tag'] or '(keine)'}")
+    if s["tags"]:
+        print(f"Markierungen          {', '.join(s['tags'])}")
+    offen = s["offene_commits"]
+    print(f"Seit der Fassung      {len(offen)} Commit(s)")
+    for zeile in offen[:12]:
+        print(f"   {zeile}")
+    if len(offen) > 12:
+        print(f"   ... und {len(offen) - 12} weitere")
+    if s["ungeschoben"]:
+        print(f"Noch nicht geschoben  {len(s['ungeschoben'])} Commit(s)")
+    print("")
+    if offen:
+        print("Naechster Schritt:  landkarte freigabe --neu fehler   (Probe, "
+              "aendert nichts)")
+    else:
+        print("Nichts freizugeben - hier steht genau das, was draussen liegt.")
+    return 0
+
+
+def _freigabe_bericht(bericht: dict) -> None:
+    befunde = bericht["befunde"]
+    schlecht = [b for b in befunde if not b["ok"]]
+    print(f"{len(befunde)} Pruefungen in {bericht['dauer_s']} s, "
+          f"{len(schlecht)} Befund(e)")
+    print("")
+    for b in befunde:
+        if b["ok"]:
+            marke = "ok     "
+        else:
+            marke = "FEHLER " if b["hart"] else "Hinweis"
+        zeile = f"  {marke} {b['name']}"
+        if b["hinweis"]:
+            zeile += f" — {b['hinweis']}"
+        print(zeile)
+
+
+def befehl_freigabe(args) -> int:
+    """Eine Fassung bewusst freigeben statt blind hochzuladen."""
+    if args.pruefen:
+        bericht = _freigabe.pruefen()
+        _freigabe_bericht(bericht)
+        print("")
+        print("Bestanden." if bericht["bestanden"]
+              else "Nicht bestanden - so wird nicht freigegeben.")
+        return 0 if bericht["bestanden"] else 1
+
+    if not args.neu and not args.fassung:
+        return _freigabe_stand()
+
+    ergebnis = _freigabe.freigeben(stufe=args.neu, genau=args.fassung,
+                                   text=args.text or "", jetzt=args.jetzt,
+                                   ohne_pruefung=args.ohne_pruefung)
+    if "pruefung" in ergebnis:
+        _freigabe_bericht(ergebnis["pruefung"])
+        print("")
+    if ergebnis.get("fehler"):
+        print(f"Abgebrochen: {ergebnis['fehler']}")
+        return 1
+    print(f"Fassung {ergebnis['alt']} -> {ergebnis['neu']}")
+    if ergebnis.get("commits") is not None:
+        print(f"{len(ergebnis['commits'])} Commit(s) in dieser Fassung")
+    print("")
+    for nummer, schritt in enumerate(ergebnis["schritte"], 1):
+        print(f"  {nummer}. {schritt}")
+    print("")
+    if ergebnis.get("probe"):
+        marke = f"--fassung {args.fassung}" if args.fassung else f"--neu {args.neu}"
+        print("Das war eine Probe - nichts geaendert, nichts hochgeladen.")
+        print(f"Wirklich freigeben:  landkarte freigabe {marke} --jetzt")
+        return 0
+    if ergebnis.get("fertig"):
+        print(f"Fassung {ergebnis['neu']} ist veroeffentlicht.")
+        print("  Claude Code:  claude plugin update landkarte@jan-werkzeuge")
+        print("  Einzeldatei:  neu herunterladen, dann erneut ausfuehren")
+    return 0
+
+
 def zerleger() -> argparse.ArgumentParser:
+    from . import __version__
     p = argparse.ArgumentParser(
         prog="landkarte",
         description="Inhaltsverzeichnis, Spickzettel, Fallenprotokoll und "
                     "Mindmap für alle Projekte.")
+    p.add_argument("--fassung", "--version", action="version",
+                   version=__version__, help="Fassungsnummer nennen")
     u = p.add_subparsers(dest="befehl", required=True)
 
     s = u.add_parser("scan", help="ein Projekt scannen und KARTE.md setzen")
@@ -1085,6 +1188,21 @@ def zerleger() -> argparse.ArgumentParser:
     s.add_argument("--einbauen", action="store_true")
     s.add_argument("--ausbauen", action="store_true")
     s.set_defaults(fn=befehl_dienst)
+
+    s = u.add_parser("freigabe", aliases=["freigeben"],
+                     help="Stand gegen GitHub zeigen oder eine Fassung freigeben")
+    s.add_argument("--pruefen", action="store_true",
+                   help="nur pruefen, nichts aendern")
+    s.add_argument("--neu", choices=["fehler", "klein", "gross"],
+                   help="Fassung erhoehen: fehler 1.1.1, klein 1.2.0, gross 2.0.0")
+    s.add_argument("--fassung", help="genaue Fassung setzen, z.B. 1.4.0")
+    s.add_argument("--text", help="ein Satz fuer AENDERUNGEN.md und den Commit")
+    s.add_argument("--jetzt", action="store_true",
+                   help="wirklich stempeln, einchecken und hochladen")
+    s.add_argument("--ohne-pruefung", action="store_true",
+                   dest="ohne_pruefung",
+                   help="Notausgang: Pruefungen ueberspringen")
+    s.set_defaults(fn=befehl_freigabe)
 
     s = u.add_parser("einrichten", help="Ablage anlegen und verknüpfen")
     s.add_argument("--teilnehmer", help="dein Name für das Protokoll, z.B. andre")

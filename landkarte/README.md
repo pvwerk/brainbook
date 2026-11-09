@@ -341,3 +341,52 @@ Ignorieren: `.landkarte/karte.json`, `.landkarte/symbole.md`,
 Nur Python-Standardbibliothek, `jq` und `git`. Die Mindmap lädt nichts aus dem
 Netz. Es verlässt nichts den Rechner außer den beiden Modellaufrufen für
 Kapitel und Werkstattbericht.
+
+## Entwickeln und freigeben
+
+Geschrieben wird immer im Original — `~/Projekte/werkzeuge`. Dorthin zeigen
+auch `~/.local/bin/landkarte` und `~/.local/bin/brainbook`, deshalb wirkt jede
+Änderung sofort. **Diese Verknüpfung nie auf eine installierte Kopie umbiegen:**
+man entwickelt sonst gegen die Kopie und wundert sich, dass nichts ankommt.
+
+Nach GitHub geht nichts nebenbei. Eine Fassung wird benannt, geprüft und dann
+geschoben:
+
+```sh
+landkarte freigabe                       # Stand: hier gegen GitHub
+landkarte freigabe --pruefen             # alle Prüfungen, ändert nichts
+landkarte freigabe --neu klein           # Probe: was würde passieren
+landkarte freigabe --neu klein --jetzt --text "Freigabe mit Prüflauf"
+```
+
+`--neu fehler` zählt 1.1.0 auf 1.1.1, `--neu klein` auf 1.2.0, `--neu gross`
+auf 2.0.0. Mit `--fassung 1.4.0` setzt man eine Nummer genau.
+
+Mit `--jetzt` läuft genau diese Reihenfolge, und sie wird nicht umgestellt:
+
+1. **prüfen** — ändert nichts; schlägt eine harte Prüfung fehl, bricht alles ab
+2. **stempeln** — die Fassung an genau zwei Stellen: `plugin.json` und `lk/__init__.py`
+3. **Paket bauen** — `brainbook-einrichten.py` neu, sonst verteilt man eine veraltete Datei
+4. **AENDERUNGEN.md** — die Commits seit der letzten Markierung
+5. **hochladen** — Commit, Markierung `vX.Y.Z`, `git push --follow-tags`
+
+### Was geprüft wird
+
+| Prüfung | Warum es sie gibt |
+|---|---|
+| Original, Ziel, Zweig | Freigeben nur aus dem Repository, nie aus einer installierten Kopie |
+| Arbeitsbaum | Was nicht eingecheckt ist, ist auch nicht geprüft |
+| Fassungsnummern | `plugin.json` und `lk/__init__.py` driften sonst auseinander |
+| Syntax | Eine nicht übersetzbare Datei darf nie hinausgehen |
+| Hilfe aller Befehle | Fängt ein zerbrochenes `argparse`, das sonst erst beim Nutzer auffällt |
+| Keine Zugangsdaten | Das Repository ist öffentlich |
+| Einzeldatei aktuell | Baut eine Probe in einen Wegwerfordner und vergleicht |
+| Installation in Wegwerf-Heim | Packt die Einzeldatei mit eigenem `HOME` aus und führt sie aus |
+| Prüfen bleibt folgenlos | Zählt die Einträge im echten Heimverzeichnis vorher und nachher |
+
+Die Installationsprüfung prüft drei Fälle, die schon schiefgingen: `--help`
+hat installiert statt zu helfen, ein Tippfehler im Schalter hat installiert,
+und die ausgepackte Fassung lief nicht.
+
+`--ohne-pruefung` ist der Notausgang. Wer ihn benutzt, schreibt in `--text`
+hinein, warum.

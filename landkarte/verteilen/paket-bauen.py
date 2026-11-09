@@ -5,14 +5,19 @@ Ergebnis: `verteilen/brainbook-einrichten.py` - eine Datei, die das ganze
 Werkzeug enthaelt, sich selbst auspackt, Claude Code erkennt und dann entweder
 das Plugin mit den Hooks einrichtet oder die bestmoegliche Alternative.
 
-Muss nach jeder Aenderung am Werkzeug neu laufen, sonst veraltet die Datei:
-    python3 verteilen/paket-bauen.py
+Muss nach jeder Aenderung am Werkzeug neu laufen, sonst veraltet die Datei.
+Normalerweise ruft `landkarte freigabe` den Bauer selbst auf; von Hand:
+
+    python3 verteilen/paket-bauen.py              # die echte Einzeldatei
+    python3 verteilen/paket-bauen.py --ziel X.py  # Probe, aendert nichts
 """
 
 from __future__ import annotations
 
 import base64
 import io
+import json
+import sys
 import textwrap
 import zipfile
 from pathlib import Path
@@ -20,6 +25,12 @@ from pathlib import Path
 WURZEL = Path(__file__).resolve().parent.parent.parent     # Marktplatz-Wurzel
 PLUGIN = WURZEL / "landkarte"
 ZIEL = PLUGIN / "verteilen" / "brainbook-einrichten.py"
+PLUGIN_JSON = PLUGIN / ".claude-plugin" / "plugin.json"
+
+
+def fassung() -> str:
+    """Die eine Fassungsnummer, aus plugin.json. Niemals hier doppelt pflegen."""
+    return json.loads(PLUGIN_JSON.read_text("utf-8"))["version"]
 
 MITNEHMEN = (
     ".claude-plugin/marketplace.json",
@@ -98,6 +109,7 @@ Schalter:
     --ohne-plugin       Claude-Code-Plugin nicht einrichten
     --ohne-regal        kein erster Scan aller Projekte
     --nur-auspacken     nur entpacken, sonst nichts
+    --fassung           nur die Fassungsnummer nennen
 """
 
 from __future__ import annotations
@@ -112,6 +124,7 @@ import zipfile
 from pathlib import Path
 
 MINDESTENS = (3, 10)
+FASSUNG = "{fassung}"
 '''
 
 RUMPF = r'''
@@ -258,6 +271,7 @@ def laufen(werkzeug: Path, *argumente: str) -> int:
 BEKANNTE_SCHALTER = {
     "--ziel", "--name", "--ki", "--ohne-plugin", "--ohne-regal",
     "--nur-auspacken", "--hilfe", "--help", "-h",
+    "--fassung", "--version", "-V",
 }
 
 
@@ -267,6 +281,9 @@ def main() -> int:
     # den jemand beim ersten Ausprobieren macht.
     if {"--hilfe", "--help", "-h"} & set(sys.argv[1:]):
         sage(__doc__ or "")
+        return 0
+    if {"--fassung", "--version", "-V"} & set(sys.argv[1:]):
+        sage(FASSUNG)
         return 0
     unbekannt = [a for a in sys.argv[1:]
                  if a.startswith("-") and a not in BEKANNTE_SCHALTER]
@@ -284,7 +301,7 @@ def main() -> int:
             "  Ubuntu:  sudo apt install python3\n"
             "  Windows: python.org/downloads, dann in PowerShell ausfuehren")
 
-    sage("Brainbook & Landkarte — Einrichtung")
+    sage(f"Brainbook & Landkarte — Einrichtung, Fassung {FASSUNG}")
     sage(f"Python {sys.version_info.major}.{sys.version_info.minor} auf {sys.platform}")
 
     ziel = Path(schalter("--ziel", str(Path.home() / "brainbook"))).expanduser()
@@ -397,17 +414,39 @@ if __name__ == "__main__":
 '''
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argumente = list(argv if argv is not None else sys.argv[1:])
+    if {"--hilfe", "--help", "-h"} & set(argumente):
+        print(__doc__ or "")
+        return 0
+    # --ziel: woanders hinbauen, damit ein Pruefen die verteilte Datei nicht
+    # anfasst. Ohne --ziel wird die echte Einzeldatei neu geschrieben.
+    ziel = ZIEL
+    if "--ziel" in argumente:
+        stelle = argumente.index("--ziel")
+        if stelle + 1 >= len(argumente):
+            print("--ziel braucht einen Pfad")
+            return 2
+        ziel = Path(argumente[stelle + 1]).expanduser()
+        del argumente[stelle:stelle + 2]
+    unbekannt = [a for a in argumente if a.startswith("-")]
+    if unbekannt:
+        print("Unbekannter Schalter: " + ", ".join(unbekannt))
+        return 2
+
     rohdaten = paket_bauen()
     kodiert = base64.b64encode(rohdaten).decode("ascii")
     zeilen = textwrap.wrap(kodiert, 96)
     block = 'PAKET = (\n' + "\n".join(f'    "{z}"' for z in zeilen) + "\n)\n"
-    ZIEL.write_text(KOPF + "\n" + block + RUMPF, "utf-8")
-    ZIEL.chmod(0o755)
-    print(f"{ZIEL.relative_to(WURZEL)} gebaut")
+    kopf = KOPF.replace("{fassung}", fassung())
+    ziel.parent.mkdir(parents=True, exist_ok=True)
+    ziel.write_text(kopf + "\n" + block + RUMPF, "utf-8")
+    ziel.chmod(0o755)
+    wohin = ziel.relative_to(WURZEL) if ziel.is_relative_to(WURZEL) else ziel
+    print(f"{wohin} gebaut, Fassung {fassung()}")
     print(f"  Paket:     {len(rohdaten) / 1024:.0f} KB in "
           f"{len(MITNEHMEN) + len(MODULE)} Dateien")
-    print(f"  Datei:     {ZIEL.stat().st_size / 1024:.0f} KB")
+    print(f"  Datei:     {ziel.stat().st_size / 1024:.0f} KB")
     return 0
 
 
