@@ -31,7 +31,22 @@ ZUSTAND = konfig.LK_HEIM / "nachgeschlagen.json"
 VERFALL = 3 * 24 * 3600          # Sitzungen aelter als drei Tage wegwerfen
 
 # Werkzeuge, bei denen jemand im Regal greift
-LESEWERKZEUGE = {"Read", "Grep", "Glob", "Edit", "MultiEdit", "NotebookEdit"}
+LESEWERKZEUGE = {"Read", "Grep", "Glob", "Edit", "MultiEdit", "NotebookEdit",
+                 "Bash"}
+
+# Bash ist ausdruecklich dabei, und zwar aus Erfahrung: beim ersten Live-Test
+# hat die KI den Waechter mit `cat -n datei.py` umgangen. Eine Tuer, die man
+# nicht bewacht, ist die Tuer, die benutzt wird - zumal manche Umgebungen der
+# KI vorgeben, Dateien mit cat und grep zu lesen statt mit dem Lesewerkzeug.
+LESEBEFEHLE = {"cat", "head", "tail", "sed", "awk", "nl", "bat", "less",
+               "more", "grep", "egrep", "fgrep", "rg", "ag", "ack", "view",
+               "strings", "xxd", "od", "pr", "fold", "column", "tac", "rev"}
+
+# Eigene Befehle sind kein heimliches Lesen, sondern Arbeit mit der
+# Bibliothek. Geprueft wird NUR das Befehlswort, nie der ganze Befehlstext:
+# sonst haette jeder Pfad, in dem "landkarte" vorkommt, die Wache
+# ausgeschaltet - und das ist genau der Ordner des Werkzeugs selbst.
+EIGENE = {"landkarte", "brainbook", "platzanweiser"}
 
 # Welche Befehle als Nachschlagen zaehlen, entscheiden die Befehle selbst:
 # sie rufen nachgeschlagen_merken(). Absichtlich NICHT dabei ist `digest` -
@@ -186,8 +201,49 @@ def auskunft(wurzel: Path, ziel: Path | None, begriff: str) -> str:
 
 # -------------------------------------------------------------------- Wache
 
+def _aus_befehl(befehl: str) -> tuple[Path | None, str]:
+    """Liest dieser Shell-Befehl eine Quelldatei? Dann welche.
+
+    Zerlegt an Pipe, && und ; und sieht sich jedes Stueck einzeln an - sonst
+    rutscht `cd X && cat y.py` durch.
+    """
+    import re as _re
+    import shlex
+
+    for stueck in _re.split(r"\|\||\||&&|;|\n", befehl):
+        stueck = stueck.strip()
+        if not stueck:
+            continue
+        try:
+            woerter = shlex.split(stueck)
+        except ValueError:
+            woerter = stueck.split()
+        if not woerter:
+            continue
+        erstes = Path(woerter[0]).name
+        if erstes in ("sudo", "command", "env", "time", "nohup", "xargs"):
+            woerter = woerter[1:]
+            erstes = Path(woerter[0]).name if woerter else ""
+        if erstes in EIGENE:
+            return None, ""           # eigener Befehl: das IST Nachschlagen
+        if erstes not in LESEBEFEHLE:
+            continue
+        for wort in woerter[1:]:
+            if wort.startswith("-"):
+                continue
+            pfad = Path(wort).expanduser()
+            if pfad.is_file():
+                return pfad, pfad.stem
+    return None, ""
+
+
 def _ziel_aus_eingabe(werkzeug: str, eingabe: dict) -> tuple[Path | None, str]:
     """Welche Stelle wird angefasst und mit welchem Begriff."""
+    if werkzeug == "Bash":
+        befehl = eingabe.get("command")
+        if not isinstance(befehl, str) or not befehl:
+            return None, ""
+        return _aus_befehl(befehl)
     for feld in ("file_path", "notebook_path", "path"):
         wert = eingabe.get(feld)
         if isinstance(wert, str) and wert:
@@ -215,7 +271,12 @@ def pruefen(werkzeug: str, eingabe: dict, kennung: str = "",
         return {}                     # per `landkarte wache --aus` abgeschaltet
     kennung = kennung or sitzung()
     ziel, begriff = _ziel_aus_eingabe(werkzeug, eingabe)
-    stelle = ziel or (Path(ordner).expanduser() if ordner else None)
+    if werkzeug == "Bash":
+        # Ohne erkannte Quelldatei nichts tun: sonst wuerde jedes `ls` im
+        # Projektordner anhalten, und der Waechter waere eine Plage.
+        stelle = ziel
+    else:
+        stelle = ziel or (Path(ordner).expanduser() if ordner else None)
     if stelle is None:
         return {}
 

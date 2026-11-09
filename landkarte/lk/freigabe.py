@@ -464,11 +464,13 @@ def _pruef_platzanweiser() -> dict:
         (projekt / "a.py").write_text("def tu_was():\n    pass\n", "utf-8")
         (projekt / "b.py").write_text("def noch_was():\n    pass\n", "utf-8")
 
-        def frage(datei: str) -> tuple[int, str]:
+        def frage(datei: str, sitzung: str = "pruefung",
+                  befehl: str = "") -> tuple[int, str]:
             eingabe = json.dumps({
-                "session_id": "pruefung", "cwd": str(projekt),
-                "tool_name": "Read",
-                "tool_input": {"file_path": str(projekt / datei)}})
+                "session_id": sitzung, "cwd": str(projekt),
+                "tool_name": "Bash" if befehl else "Read",
+                "tool_input": ({"command": befehl} if befehl
+                               else {"file_path": str(projekt / datei)})})
             umgebung = dict(os.environ, HOME=str(heim))
             try:
                 e = subprocess.run([sys.executable, "-I", str(einstieg)],
@@ -509,6 +511,21 @@ def _pruef_platzanweiser() -> dict:
             return _befund("Platzanweiser", False,
                            f"reicht den Eintrag nicht nach: {zweite[:120]}")
 
+        # Die Tuer, die beim ersten Live-Test benutzt wurde: `cat datei.py`.
+        # Ein Waechter, der nur die Lesewerkzeuge kennt, ist Zierde.
+        code, dritte = frage("", sitzung="bash-probe",
+                             befehl=f"cat -n {projekt / 'a.py'}")
+        if code != 0 or '"deny"' not in dritte:
+            return _befund("Platzanweiser", False,
+                           "`cat datei.py` kommt am Waechter vorbei")
+        # Was keine Quelldatei liest, muss durchgehen
+        for harmlos in (f"ls -la {projekt}", "landkarte wo probe",
+                        f"git -C {projekt} status"):
+            code, antwort = frage("", sitzung="harmlos-probe", befehl=harmlos)
+            if code != 0 or antwort.strip():
+                return _befund("Platzanweiser", False,
+                               f"haelt bei einem harmlosen Befehl an: {harmlos}")
+
         # Unsinn auf der Eingabe darf nichts kaputtmachen
         umgebung = dict(os.environ, HOME=str(heim))
         e = subprocess.run([sys.executable, "-I", str(einstieg)],
@@ -518,7 +535,8 @@ def _pruef_platzanweiser() -> dict:
             return _befund("Platzanweiser", False,
                            "kaputte Eingabe wird nicht durchgelassen")
         return _befund("Platzanweiser", True,
-                       "haelt einmal an mit Auskunft, danach nur noch Hinweise")
+                       "haelt einmal an mit Auskunft (auch bei `cat`), danach "
+                       "nur noch Hinweise, harmlose Befehle gehen durch")
 
 
 def _pruef_karte() -> dict:
