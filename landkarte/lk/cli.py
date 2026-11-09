@@ -915,7 +915,7 @@ def befehl_einrichten(args) -> int:
 def _freigabe_stand() -> int:
     s = _freigabe.stand()
     print(f"Fassung hier          {s['lokal']}")
-    if s.get("marke_draussen") is True:
+    if s.get("marke_draussen") is True:  # verbindlich: Markierung im Repository
         print(f"Auf GitHub            v{s['lokal']} ist veroeffentlicht")
     elif s.get("marke_draussen") is False:
         print(f"Auf GitHub            v{s['lokal']} fehlt noch"
@@ -928,15 +928,17 @@ def _freigabe_stand() -> int:
         print(f"Abholer sieht gerade  nicht abrufbar ({s['abruf_fehler']})")
     if s.get("kopie"):
         print("")
-        if s["gleich"]:
-            print("Das ist eine installierte Kopie und auf dem Stand von GitHub.")
-        elif s["veroeffentlicht"]:
-            print(f"Das ist eine installierte Kopie. Auf GitHub liegt "
-                  f"{s['veroeffentlicht']} — aktualisieren mit:")
+        if s.get("rueckstand"):
+            print(f"Das ist eine installierte Kopie. Auf GitHub liegt schon "
+                  f"{s['neuste']} — aktualisieren mit:")
             print("  claude plugin update landkarte@jan-werkzeuge")
             print("  oder die Einzeldatei neu herunterladen und ausfuehren")
+        elif s["gleich"]:
+            print("Das ist eine installierte Kopie und auf dem neusten Stand.")
         else:
-            print("Das ist eine installierte Kopie; GitHub war nicht erreichbar.")
+            print("Das ist eine installierte Kopie; GitHub war nicht erreichbar"
+                  + (f" ({s['marke_fehler']})" if s.get("marke_fehler") else "")
+                  + ".")
         return 0
     print(f"Letzte Markierung     {s['letzter_tag'] or '(keine)'}")
     if s["tags"]:

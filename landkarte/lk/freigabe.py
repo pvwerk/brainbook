@@ -39,6 +39,7 @@ HERKUNFT = "pvwerk/brainbook"
 ZWEIG = "main"
 ROH = ("https://raw.githubusercontent.com/pvwerk/brainbook/main/"
        "landkarte/.claude-plugin/plugin.json")
+MARKIERUNGEN = "https://api.github.com/repos/pvwerk/brainbook/tags?per_page=20"
 
 # Dateien, die beim Freigeben neu entstehen und daher schmutzig sein duerfen
 ERZEUGT = {
@@ -133,6 +134,41 @@ def fassung_setzen(neu: str) -> list[str]:
         INIT_PY.write_text(ersetzt, "utf-8")
         geaendert.append(str(INIT_PY.relative_to(WURZEL)))
     return geaendert
+
+
+def als_zahlen(name: str) -> tuple[int, ...]:
+    """1.2.10 -> (1, 2, 10). Fuer Vergleiche; "10" ist mehr als "9"."""
+    teile = []
+    for stueck in str(name).lstrip("v").split("."):
+        ziffern = "".join(z for z in stueck if z.isdigit())
+        teile.append(int(ziffern) if ziffern else 0)
+    while len(teile) < 3:
+        teile.append(0)
+    return tuple(teile[:3])
+
+
+def neueste_markierung(zeit: int = 8) -> tuple[str, str]:
+    """Die hoechste veroeffentlichte Fassung laut Markierungen. (Fassung, Fehler)
+
+    Ueber die Programmierschnittstelle, nicht ueber die Rohdatei: die kommt
+    aus einem Zwischenspeicher und laeuft Minuten nach. Braucht kein git und
+    laeuft daher auch in einer installierten Kopie.
+    """
+    try:
+        bitte = urllib.request.Request(
+            MARKIERUNGEN, headers={"Accept": "application/vnd.github+json",
+                                   "User-Agent": "landkarte"})
+        with urllib.request.urlopen(bitte, timeout=zeit) as antwort:
+            daten = json.loads(antwort.read().decode("utf-8"))
+        namen = [str(e.get("name", "")) for e in daten if isinstance(e, dict)]
+        gueltig = [n for n in namen if re.fullmatch(r"v?\d+\.\d+\.\d+", n)]
+        if not gueltig:
+            return "", "keine Markierungen"
+        return max(gueltig, key=als_zahlen).lstrip("v"), ""
+    except urllib.error.HTTPError as fehler:
+        return "", f"HTTP {fehler.code}"
+    except Exception as fehler:                       # noqa: BLE001
+        return "", f"{type(fehler).__name__}"
 
 
 def _markierung_draussen(name: str) -> tuple[bool, str]:
@@ -467,12 +503,17 @@ def stand() -> dict:
     lokal = fassung()
     veroeffentlicht, grund = _fassung_auf_github()
     if not ist_original():
-        # Installierte Kopie: hier gibt es kein git und nichts freizugeben.
+        # Installierte Kopie: kein git, nichts freizugeben. Gefragt wird nach
+        # der hoechsten Markierung, nicht nach der Rohdatei - sonst raet eine
+        # aktuelle Installation zum Rueckschritt auf eine aeltere Fassung.
+        neuste, marke_fehler = neueste_markierung()
         return {"lokal": lokal, "veroeffentlicht": veroeffentlicht,
                 "abruf_fehler": grund, "letzter_tag": "", "tags": [],
                 "offene_commits": [], "ungeschoben": [], "kopie": True,
-                "marke_draussen": None, "marke_fehler": "",
-                "gleich": bool(veroeffentlicht) and veroeffentlicht == lokal}
+                "neuste": neuste, "marke_draussen": None,
+                "marke_fehler": marke_fehler,
+                "rueckstand": bool(neuste) and als_zahlen(neuste) > als_zahlen(lokal),
+                "gleich": bool(neuste) and als_zahlen(neuste) <= als_zahlen(lokal)}
     code, letzter = _git("describe", "--tags", "--abbrev=0")
     tag = letzter if code == 0 else ""
     bereich = f"{tag}..HEAD" if tag else "HEAD"
