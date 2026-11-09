@@ -16,6 +16,7 @@ Korrigiert wird nach Risiko getrennt:
 from __future__ import annotations
 
 import json
+import math
 import random
 import re
 import time
@@ -85,6 +86,28 @@ def _antwort_lesen(text: str) -> dict:
 
 
 # ------------------------------------------------------------- Auswahl
+
+
+def kapitel_zaehlen() -> int:
+    """Wie viele Kapitel die Bibliothek ueberhaupt hat."""
+    anzahl = 0
+    for wurzel in regalwart.laden().get("regale", {}):
+        pfad = Path(wurzel)
+        if not pfad.is_dir():
+            continue
+        try:
+            anzahl += len(buch.kapitel_sammeln(pfad))
+        except OSError:
+            continue
+    return anzahl
+
+
+def anzahl_aus_anteil(anteil: float) -> int:
+    """20 Prozent der Bibliothek - mindestens eins, wenn es etwas gibt."""
+    gesamt = kapitel_zaehlen()
+    if gesamt <= 0:
+        return 0
+    return max(1, math.ceil(gesamt * anteil / 100.0))
 
 
 def kapitel_auswaehlen(anzahl: int = 1) -> list[dict]:
@@ -396,7 +419,9 @@ def _journal(wurzel: Path, kapitel: dict, vorschlaege: list[dict]) -> None:
 
 
 def runde(anzahl: int = 1, modell: str | None = None,
-          trocken: bool = False) -> list[dict]:
+          trocken: bool = False, anteil: float | None = None) -> list[dict]:
+    if anteil:
+        anzahl = anzahl_aus_anteil(anteil)
     aus = []
     for kandidat in kapitel_auswaehlen(anzahl):
         aus.append(lesung(kandidat["kapitel"], kandidat["projekt"],

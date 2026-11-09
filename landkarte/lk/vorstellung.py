@@ -55,6 +55,24 @@ reicht zu jeder neuen Seite nur noch den Verzeichniseintrag nach.
   landkarte wache        Stand: wurde nachgeschlagen, wer wurde angehalten
   landkarte wache --aus  abschalten, wenn er im Weg ist
 
+DU SIEHST ES IN JEDER ANTWORT
+Die KI beginnt jede Antwort mit einer Zeile, damit du nicht raten musst, ob
+sie nachgesehen hat:
+  bb false               nichts in der Bibliothek gefunden
+  bb true 7 Einträge     7 Fundstellen gefunden und benutzt
+Nach langen Aufgaben kommt die Bilanz dazu:
+  bb 12 uses             so oft hat die Bibliothek etwas geliefert
+Selbst abfragen: landkarte bb "<begriff>" und landkarte bb --bilanz.
+Steht oft bb false, hat die Bibliothek eine Lücke - das ist ein Befund.
+
+DIE VERGANGENHEIT AUFNEHMEN
+Eine frische Bibliothek ist leer und sagt immer bb false. Einmal
+  landkarte aufnehmen
+traegt nach, was in alten Sitzungsprotokollen steht, baut das Regal, schreibt
+Kapitel daraus und laesst danach den Testleser 20 % der Bibliothek rueckwaerts
+lesen. Die ersten zwei Schritte kosten nichts; vor den Modellaufrufen wird
+gesagt, wie viele es sind, und gefragt.
+
 WAS ES KANN
 Es hält Projektwissen fest, damit niemand nach Wochen wieder von vorn anfängt.
 Je Projekt entsteht ein Inhaltsverzeichnis (KARTE.md) mit vier Teilen:
@@ -131,7 +149,7 @@ eigentlichen Anliegen. Biete am Ende an, Einzelheiten zu zeigen. Wenn er sofort
 eine andere Aufgabe stellt, hat die Aufgabe Vorrang; erkläre es dann in zwei
 Sätzen und biete den Rest an.
 
-Diese sechs Punkte gehören in die Erklärung:
+Diese sieben Punkte gehören in die Erklärung:
 
 0. DIE REGEL — vor jeder Änderung an einem bestehenden Projekt wird zuerst
    nachgeschlagen, nicht Code gelesen. Die Regel steht jetzt in seiner
@@ -168,6 +186,39 @@ Diese sechs Punkte gehören in die Erklärung:
    Darin stehen nur Verweise, keine Inhalte. Prägt er im Gespräch ein eigenes
    Wort für etwas, trage es unaufgefordert ein:
    `landkarte merke "<wort>" --ist <projekt> --was "..."`.
+
+6. WIE ER ES ABFRAGT — nenne die vier Befehle wörtlich, mit je einem
+   Halbsatz dazu:
+     landkarte bb "<begriff>"   nachschlagen; gibt die Signalzeile für die
+                                Antwort gleich mit
+     landkarte wo "<begriff>"   dasselbe ausführlich: Regal, Fach, Seite
+     landkarte bb --bilanz      `bb N uses` — wie oft die Bibliothek in dieser
+                                Sitzung etwas geliefert hat
+     brainbook stats --roh      das Selbstprotokoll des Werkzeugs, Zeile für
+                                Zeile; `brainbook stats --export ~/Desktop`
+                                macht daraus eine Datei für die Rückmeldung
+
+   Sage dazu, dass du von jetzt an jede Antwort mit `bb false` oder
+   `bb true <N> Einträge` beginnst, damit er sieht, ob die Bibliothek etwas
+   wusste, und nach langen Aufgaben `bb <N> uses` anhängst.
+
+DANACH, UNAUFGEFORDERT: biete ihm an, die Vergangenheit aufzunehmen.
+Eine frische Bibliothek ist leer, und eine leere Bibliothek antwortet immer
+`bb false` — dann glaubt niemand mehr, dass Nachschlagen sich lohnt. Sage:
+
+  * aus alten Sitzungsprotokollen lässt sich nachtragen, was schon passiert
+    ist; daraus entstehen Buchkapitel mit den Fallen, die schon Zeit gekostet
+    haben
+  * Chronik und Regal kosten nichts, erst Kapitel und Rücklesen rufen ein
+    Modell — der Befehl sagt vorher, wie oft, und fragt
+  * der Befehl ist `landkarte aufnehmen`
+
+Sagt er ja, führe `landkarte aufnehmen --ja` aus. Danach liest der Testleser
+von selbst 20 % der Bibliothek rückwärts — er kennt die Antwort und sucht die
+Frage. **Teile ihm das Ergebnis mit**: wie viele Kapitel geschrieben und
+gelesen wurden, die gemessene Trefferquote und was dabei berichtigt wurde.
+Liegt die Trefferquote unter 60 %, sage es deutlich: dann findet das
+Verzeichnis zu wenig, und `landkarte aufsicht` zeigt, woran es liegt.
 
 Erwähne auch in einem Satz, dass das Werkzeug sich selbst protokolliert, damit
 Fehler gefunden werden können, dass darin keine Projektnamen, Pfade oder

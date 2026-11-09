@@ -539,6 +539,72 @@ def _pruef_platzanweiser() -> dict:
                        "nur noch Hinweise, harmlose Befehle gehen durch")
 
 
+def _pruef_signalzeilen() -> dict:
+    """Der Wortlaut der bb-Zeilen ist von Jan vorgegeben und darf nicht driften.
+
+    `bb false` / `bb true <N> Eintraege` / `bb <N> uses` - wenn sich das
+    aendert, lesen alle Anweisungsdateien etwas anderes als das Werkzeug
+    ausgibt, und niemand merkt es.
+    """
+    einstieg = PLUGIN / "bin" / "landkarte"
+    with tempfile.TemporaryDirectory(prefix="landkarte-bb-") as ordner:
+        o = Path(ordner)
+        heim = o / "heim"
+        (heim / ".landkarte").mkdir(parents=True)
+        projekt = o / "bbprojekt"
+        (projekt / ".landkarte").mkdir(parents=True)
+        (projekt / "KARTE.md").write_text("# bbprojekt\n", "utf-8")
+        (projekt / ".landkarte" / "karte.json").write_text(json.dumps({
+            "name": "bbprojekt", "wurzel": str(projekt), "zweck": "Probe",
+            "dateien": [{"pfad": "zwirbelzeug.py", "zweck": "macht Zwirbel",
+                         "symbole": [{"name": "zwirbeln", "zeile": 3}]}],
+        }), "utf-8")
+        # Damit die Suche das Projekt findet, muss es im Regal stehen.
+        (heim / ".landkarte" / "projekte").mkdir(parents=True, exist_ok=True)
+        from . import konfig as _k
+        (heim / ".landkarte" / "projekte" / f"{_k.slug(projekt)}.json").write_text(
+            (projekt / ".landkarte" / "karte.json").read_text("utf-8"), "utf-8")
+        (heim / ".landkarte" / "register.json").write_text(json.dumps({
+            "gebaut": 0, "anzahl": 1, "scanfehler": [],
+            "projekte": [{"name": "bbprojekt", "wurzel": str(projekt),
+                          "zweck": "Probe", "rang": {"punkte": 1}}]}), "utf-8")
+
+        def ruf(*argumente: str) -> str:
+            umgebung = dict(os.environ, HOME=str(heim),
+                            LANDKARTE_SITZUNG="bb-pruefung")
+            try:
+                e = subprocess.run([sys.executable, "-I", str(einstieg),
+                                    *argumente], text=True, capture_output=True,
+                                   timeout=60, env=umgebung, cwd=str(projekt))
+                return (e.stdout or e.stderr).strip()
+            except Exception as fehler:               # noqa: BLE001
+                return f"FEHLER {type(fehler).__name__}: {fehler}"
+
+        leer = ruf("bb", "gibtesnichtxyzq").splitlines()
+        if not leer or leer[0] != "bb false":
+            return _befund("Signalzeilen", False,
+                           f"ohne Treffer kommt {leer[:1]!r}, erwartet 'bb false'")
+        voll = ruf("bb", "zwirbelzeug").splitlines()
+        if not voll or not re.fullmatch(r"bb true \d+ Eintr\u00e4ge", voll[0]):
+            return _befund("Signalzeilen", False,
+                           f"mit Treffern kommt {voll[:1]!r}, erwartet "
+                           "'bb true <N> Eintraege'")
+        bilanz = ruf("bb", "--bilanz").splitlines()
+        if not bilanz or not re.fullmatch(r"bb \d+ uses", bilanz[0]):
+            return _befund("Signalzeilen", False,
+                           f"Bilanz kommt als {bilanz[:1]!r}, erwartet "
+                           "'bb <N> uses'")
+        # Der Wortlaut muss auch in der Anweisungsdatei stehen
+        from . import anweisung
+        text = anweisung.block()
+        for stueck in ("bb false", "bb true", "uses"):
+            if stueck not in text:
+                return _befund("Signalzeilen", False,
+                               f"{stueck!r} fehlt im Regeltext")
+        return _befund("Signalzeilen", True,
+                       f"{leer[0]} · {voll[0]} · {bilanz[0]}")
+
+
 def _pruef_karte() -> dict:
     from . import pruefer
     try:
@@ -561,6 +627,7 @@ PRUEFUNGEN = (
     _pruef_paket,
     _pruef_installation,
     _pruef_platzanweiser,
+    _pruef_signalzeilen,
     _pruef_karte,
 )
 

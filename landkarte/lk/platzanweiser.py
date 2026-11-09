@@ -99,20 +99,51 @@ def _eintrag(daten: dict, kennung: str) -> dict:
     return eintrag
 
 
-def nachgeschlagen_merken(projekt: str = "") -> None:
+def nachgeschlagen_merken(projekt: str = "",
+                          treffer: int | None = None) -> None:
     """Festhalten, dass in dieser Sitzung nachgeschlagen wurde.
 
     Wird von den Nachschlagebefehlen selbst gerufen - nicht aus dem Hook.
     So zaehlt nur echtes Nachschlagen, egal ob es die KI oder der Mensch tat.
+
+    `treffer` ist die Zahl der Fundstellen. Daraus entsteht die Bilanz, die
+    eine KI am Ende einer langen Aufgabe als `bb N uses` ausgibt - gezaehlt,
+    nicht geschaetzt.
     """
     try:
         daten = _laden()
         eintrag = _eintrag(daten, sitzung())
         eintrag["nachgeschlagen"] = sorted(
             set(eintrag["nachgeschlagen"]) | {projekt or "*"})
+        eintrag["abfragen"] = int(eintrag.get("abfragen", 0)) + 1
+        if treffer is not None:
+            eintrag["treffer"] = int(eintrag.get("treffer", 0)) + int(treffer)
+            if treffer > 0:
+                eintrag["ergiebig"] = int(eintrag.get("ergiebig", 0)) + 1
         _schreiben(daten)
     except Exception:                                 # noqa: BLE001
         pass
+
+
+def bilanz(kennung: str = "") -> dict:
+    """Wie oft diese Sitzung die Bibliothek benutzt hat - fuer `bb N uses`.
+
+    Als Nutzung zaehlt alles, wobei die Bibliothek etwas geliefert hat:
+    ergiebige Abfragen, nachgereichte Verzeichniseintraege und die Male, wo
+    der Platzanweiser angehalten und die Auskunft mitgegeben hat.
+    """
+    eintrag = _laden()["sitzungen"].get(kennung or sitzung(), {})
+    ergiebig = int(eintrag.get("ergiebig", 0))
+    gezeigt = len(eintrag.get("gezeigt", []))
+    gestoppt = len(eintrag.get("gestoppt", []))
+    return {
+        "abfragen": int(eintrag.get("abfragen", 0)),
+        "ergiebig": ergiebig,
+        "treffer": int(eintrag.get("treffer", 0)),
+        "nachgereicht": gezeigt,
+        "angehalten": gestoppt,
+        "uses": ergiebig + gezeigt + gestoppt,
+    }
 
 
 def hat_nachgeschlagen(projekt: str, kennung: str = "") -> bool:

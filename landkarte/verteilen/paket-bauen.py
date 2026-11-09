@@ -114,6 +114,7 @@ Schalter:
     --ohne-regal        kein erster Scan aller Projekte
     --nur-auspacken     nur entpacken, sonst nichts
     --ohne-regel        die Regel nicht in die Anweisungsdatei schreiben
+    --ohne-vergangenheit  nicht anbieten, alte Sitzungen aufzunehmen
     --fassung           nur die Fassungsnummer nennen
 """
 
@@ -279,6 +280,7 @@ BEKANNTE_SCHALTER = {
     "--ziel", "--name", "--ki", "--ohne-plugin", "--ohne-regal",
     "--nur-auspacken", "--hilfe", "--help", "-h",
     "--fassung", "--version", "-V", "--ohne-regel",
+    "--ohne-vergangenheit",
 }
 
 
@@ -403,9 +405,39 @@ def main() -> int:
     else:
         laufen(werkzeug, "vorstellen")
 
+    # Beim ersten Mal: anbieten, die Vergangenheit aufzunehmen. Eine frische
+    # Bibliothek ist leer, und eine leere Bibliothek antwortet immer "bb false"
+    # - dann glaubt niemand mehr, dass Nachschlagen sich lohnt.
+    if not gesetzt("--ohne-vergangenheit"):
+        abschnitt("7. Die Vergangenheit aufnehmen")
+        sage("Die Bibliothek ist gerade leer. Aus alten Sitzungsprotokollen")
+        sage("laesst sich nachtragen, was schon passiert ist - daraus entstehen")
+        sage("Buchkapitel mit den Fallen, die schon einmal Zeit gekostet haben.")
+        sage("")
+        sage("Die ersten zwei Schritte kosten nichts (Chronik, Regal). Erst das")
+        sage("Schreiben der Kapitel und das Ruecklesen rufen ein Sprachmodell;")
+        sage("vorher wird gesagt, wie oft, und gefragt.")
+        sage("")
+        if not sys.stdin.isatty():
+            # Unbeaufsichtigt: nur die kostenlosen Schritte. Eine Einrichtung,
+            # die ohne Rueckfrage Modellaufrufe startet, waere eine Zumutung.
+            sage("Unbeaufsichtigt - nur Chronik und Regal, keine Modellaufrufe.")
+            laufen(werkzeug, "aufnehmen", "--kapitel", "0", "--anteil", "0")
+            sage("")
+            sage("Kapitel und Ruecklesen spaeter:  landkarte aufnehmen")
+        else:
+            antwort = frage("Jetzt aufnehmen? [J/n]: ", "j").strip().lower()
+            if not antwort or antwort[0] in ("j", "y"):
+                laufen(werkzeug, "aufnehmen")
+            else:
+                sage("Uebersprungen. Spaeter jederzeit:  landkarte aufnehmen")
+
     abschnitt("Fertig")
     sage("Die wichtigsten Befehle:")
+    sage('  landkarte bb "<begriff>"   nachschlagen + Signalzeile fuer die Antwort')
     sage('  landkarte wo "<begriff>"   suchen: Projekt -> Teil -> Datei:Zeile')
+    sage("  landkarte bb --bilanz       bb N uses - wie oft genutzt")
+    sage("  landkarte aufnehmen         Vergangenheit aufnehmen + rueckwaerts pruefen")
     sage("  landkarte wache             Platzanweiser: Stand, --aus schaltet ab")
     sage("  landkarte zeig              Inhaltsverzeichnis des Projekts hier")
     sage('  landkarte notiz "..."       eine Falle festhalten')

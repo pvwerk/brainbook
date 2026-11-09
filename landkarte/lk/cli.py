@@ -115,10 +115,46 @@ def befehl_vorstellen(args) -> int:
     return 0
 
 
+def _bb_zeile(treffer: int) -> str:
+    """Die Signalzeile, die Jan in jeder Antwort sehen will.
+
+    Wortlaut von ihm vorgegeben (09.11.2026): nichts gefunden -> `bb false`,
+    sonst `bb true <N> Eintraege`. Die Zahl ist gezaehlt, nicht geschaetzt.
+    """
+    if treffer <= 0:
+        return "bb false"
+    return f"bb true {treffer} Einträge"
+
+
+def befehl_bb(args) -> int:
+    """Nachschlagen und das Ergebnis als Signalzeile melden.
+
+    Ein Aufruf statt zwei: die Zeile fuer die Antwort und die Fundstellen.
+    """
+    if args.bilanz:
+        b = platzanweiser.bilanz()
+        print(f"bb {b['uses']} uses")
+        print(f"   {b['abfragen']} Abfragen, davon {b['ergiebig']} ergiebig "
+              f"({b['treffer']} Fundstellen)")
+        print(f"   {b['nachgereicht']} Verzeichniseinträge nachgereicht, "
+              f"{b['angehalten']} mal angehalten")
+        return 0
+    if not args.begriff:
+        print("Entweder einen Begriff nennen oder --bilanz.", file=sys.stderr)
+        return 2
+    args.bb = True
+    args.grenze = getattr(args, "grenze", 5)
+    args.projekt = None
+    return befehl_wo(args)
+
+
 def befehl_finde(args) -> int:
-    platzanweiser.nachgeschlagen_merken("*")
     treffer = suche.finden(args.begriff, projekt=args.projekt)
+    platzanweiser.nachgeschlagen_merken("*", treffer=len(treffer))
     messen(treffer=len(treffer), laenge=len(args.begriff))
+    if getattr(args, "bb", False):
+        print(_bb_zeile(len(treffer)))
+        print()
     print(suche.ausgeben(treffer, args.begriff))
     return 0 if treffer else 1
 
@@ -216,9 +252,9 @@ def befehl_merke(args) -> int:
 
 
 def befehl_brainbook(args) -> int:
-    platzanweiser.nachgeschlagen_merken("*")
     if args.begriff:
         treffer = brainbook.nachschlagen(args.begriff)
+        platzanweiser.nachgeschlagen_merken("*", treffer=len(treffer))
         if not treffer:
             print(f"„{args.begriff}“ steht nicht im Brainbook.")
             print('Eintragen mit:  landkarte merke "<stichwort>" --ist <projekt>')
@@ -255,8 +291,6 @@ def befehl_wo(args) -> int:
     hier_pfad = str(hier.resolve())
     # Dem Platzanweiser sagen, dass nachgeschlagen wurde. `wo` geht ueber alle
     # Regale, darum gilt es fuer alles, was danach kommt.
-    platzanweiser.nachgeschlagen_merken("*")
-
     # Zuerst das Brainbook: Jans Wort zaehlt mehr als jeder Ordnername.
     aus_brainbook = brainbook.nachschlagen(args.begriff)
     if aus_brainbook:
@@ -327,6 +361,13 @@ def befehl_wo(args) -> int:
             }
 
     gereiht = sorted(kandidaten.values(), key=lambda r: -r["punkte"])
+    # Dem Platzanweiser sagen, dass nachgeschlagen wurde, mit der Zahl der
+    # Fundstellen - daraus entsteht `bb N uses`. `wo` geht ueber alle Regale,
+    # darum gilt es fuer alles, was danach kommt.
+    platzanweiser.nachgeschlagen_merken("*", treffer=len(alle_treffer))
+    if getattr(args, "bb", False):
+        print(_bb_zeile(len(alle_treffer)))
+        print()
     messen(treffer=len(gereiht), inhaltstreffer=len(alle_treffer),
            aus_brainbook=len(aus_brainbook), laenge=len(args.begriff),
            projekt=hier_pfad)
@@ -441,7 +482,15 @@ def befehl_lesung(args) -> int:
                 print(f"    [{v['schwere']}] {v['kapitel']}: {v['befund']}")
         return 0
 
-    ergebnisse = testleser.runde(args.anzahl, args.modell, args.trocken)
+    anteil = getattr(args, "anteil", None)
+    if anteil:
+        gesamt = testleser.kapitel_zaehlen()
+        wieviel = testleser.anzahl_aus_anteil(anteil)
+        print(f"Bibliothek: {gesamt} Kapitel, {round(anteil)} % davon "
+              f"= {wieviel} werden rückwärts gelesen.")
+        print("")
+    ergebnisse = testleser.runde(args.anzahl, args.modell, args.trocken,
+                                 anteil=anteil)
     if not ergebnisse:
         print("Keine Kapitel vorhanden. → landkarte kapitel --faellig")
         return 1
@@ -1039,7 +1088,7 @@ def befehl_anweisung(args) -> int:
             else anweisung.zieldatei(args.ki or konf.get("ki", "")))
     ergebnis = anweisung.einhaengen(ziel, oben=not args.unten)
     print(f"{ergebnis}: {_kurz(ziel)}")
-    if ergebnis in ("angelegt", "oben eingesetzt", "ergaenzt", "ersetzt"):
+    if ergebnis in ("oben eingesetzt", "ergaenzt", "ersetzt"):
         print("Eine Kopie des vorherigen Stands liegt in "
               f"{_kurz(Path.home() / '.Papierkorb-Claude' / 'landkarte-anweisung')}")
     if ziel.name != "CLAUDE.md":
@@ -1082,6 +1131,148 @@ def befehl_wache(args) -> int:
     gestoppt = stand.get("gestoppt", [])
     print(f"Angehalten:     {', '.join(_kurz(n) for n in gestoppt) or 'niemand'}")
     print(f"Nachgereicht:   {len(stand.get('gezeigt', []))} Seiten")
+    return 0
+
+
+class _KapitelWuensche:
+    """Die Schalter, die _kapitel_machen erwartet - ohne argparse."""
+
+    def __init__(self, modell=None, einfach=False, trocken=False):
+        self.modell = modell
+        self.einfach = einfach
+        self.trocken = trocken
+
+
+def befehl_aufnehmen(args) -> int:
+    """Die Vergangenheit in die Bibliothek aufnehmen und sie danach pruefen.
+
+    Vier Schritte. Die ersten zwei kosten nichts, die letzten zwei rufen ein
+    Sprachmodell - darum wird vorher gesagt, wie oft, und ohne --ja gefragt.
+    """
+    tage = args.tage
+    kapitel_grenze = args.kapitel
+    anteil = args.anteil
+
+    print("VERGANGENHEIT AUFNEHMEN")
+    print("")
+    print("1. Chronik nachtragen — was in alten Sitzungsprotokollen steht")
+    ergebnis = nachtrag.nachtragen(tage, args.grenze)
+    print(f"   {ergebnis['protokolle']} Protokolle, {ergebnis['sitzungen']} mit "
+          f"Werkzeugaufrufen, {ergebnis['neu']} Einträge neu "
+          f"({ergebnis['schon_vorhanden']} waren schon da)")
+
+    print("")
+    print("2. Regal bauen — jedes Projekt kartografieren")
+    regal = register.regal_bauen()
+    print(f"   {regal['projekte']} Projekte · {_kurz(regal['regal'])}")
+    for f in regal.get("scanfehler", [])[:5]:
+        print(f"   ! {f.get('projekt') or f.get('ordner')}: {f['fehler'][:90]}")
+
+    offen = chronik.kapitel_faellig(min_aufrufe=args.min_aufrufe)
+    # Sitzungen, deren Projektordner es nicht mehr GIBT, ergeben kein Kapitel.
+    # Ein Ordner, der nur gerade nicht lesbar ist, bleibt dagegen drin.
+    verschwunden = 0
+    behalten = []
+    for eintrag in offen:
+        ordner = eintrag.get("projekt") or eintrag.get("ordner") or ""
+        if ordner and register.lesbarkeit(Path(ordner)) == "fehlt":
+            verschwunden += 1
+            continue
+        behalten.append(eintrag)
+    offen = behalten
+    zu_schreiben = min(len(offen), kapitel_grenze) if kapitel_grenze else 0
+    vorhandene = testleser.kapitel_zaehlen()
+    zu_lesen = testleser.anzahl_aus_anteil(anteil) if anteil else 0
+
+    print("")
+    print("3. Bücher schreiben und 4. rückwärts lesen brauchen ein Sprachmodell")
+    print(f"   {len(offen)} Sitzungen wären ein Kapitel wert, davon werden "
+          f"{zu_schreiben} geschrieben")
+    if verschwunden:
+        print(f"   ({verschwunden} übersprungen: Projektordner gibt es nicht "
+              f"mehr)")
+    print(f"   danach {round(anteil)} % der Bibliothek rückwärts lesen "
+          f"(heute {vorhandene} Kapitel → etwa {zu_lesen})" if anteil else
+          "   kein Rückwärtslesen (--anteil 0)")
+    kosten = zu_schreiben * 3 + zu_lesen
+    print(f"   zusammen etwa {kosten} Modellaufrufe "
+          f"(je Kapitel zwei Schreiber und ein Schiedsrichter)")
+    if not zu_schreiben and not zu_lesen:
+        print("")
+        print("Nichts weiter zu tun. Die Chronik und das Regal stehen.")
+        return 0
+    if not args.ja:
+        print("")
+        if not sys.stdin.isatty():
+            # Niemand da, der zustimmen kann - also nicht zustimmen.
+            print("Keine Rückfrage möglich (keine Eingabe). Chronik und Regal")
+            print("bleiben, sie kosteten nichts.")
+            print("Mit Modellaufrufen weitermachen:  landkarte aufnehmen --ja")
+            return 0
+        try:
+            antwort = input("Weiter? [J/n] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("")
+            print("Abgebrochen. Chronik und Regal bleiben.")
+            return 0
+        if antwort and antwort[0] not in ("j", "y"):
+            print("Abgebrochen. Chronik und Regal bleiben, sie kosteten nichts.")
+            print("Später weitermachen:  landkarte aufnehmen --ja")
+            return 0
+
+    geschrieben = 0
+    if zu_schreiben:
+        print("")
+        print("3. Bücher schreiben")
+        wuensche = _KapitelWuensche(modell=args.modell)
+        for eintrag in offen[:zu_schreiben]:
+            erg = _kapitel_machen(eintrag["sitzung"], wuensche)
+            if erg.get("ok"):
+                _kapitel_melden(erg)
+                karte.bauen(Path(erg["projekt"]))
+                geschrieben += 1
+            else:
+                print(f"   ✗ {eintrag['sitzung'][:8]}: {erg.get('grund')}")
+
+    if not anteil:
+        print("")
+        print(f"Fertig. {geschrieben} Kapitel geschrieben.")
+        return 0
+
+    jetzt_vorhanden = testleser.kapitel_zaehlen()
+    wieviel = testleser.anzahl_aus_anteil(anteil)
+    print("")
+    print(f"4. Testleser — {round(anteil)} % von {jetzt_vorhanden} Kapiteln "
+          f"({wieviel}) rückwärts lesen")
+    print("   Er kennt die Antwort und sucht die Frage: aus jedem Kapitel")
+    print("   entstehen Suchbegriffe, dann wird wirklich nachgeschlagen.")
+    ergebnisse = testleser.runde(anteil=anteil, modell=args.modell)
+    gelesen = [e for e in ergebnisse if e.get("ok")]
+    begriffe = sum(len(e.get("begriffe", [])) for e in gelesen)
+    blind = sum(len(e.get("blind_vorher", [])) for e in gelesen)
+    korrekturen = sum(len(e.get("korrekturen", [])) for e in gelesen)
+    vorschlaege = [v for e in gelesen for v in e.get("vorschlaege", [])]
+    for e in gelesen:
+        treffer = len(e.get("begriffe", [])) - len(e.get("blind_vorher", []))
+        print(f"   {Path(e['kapitel']).name[:44]:<46} "
+              f"{treffer}/{len(e.get('begriffe', []))} gefunden")
+
+    print("")
+    print("ERGEBNIS")
+    print(f"  {geschrieben} Kapitel geschrieben, {len(gelesen)} davon "
+          f"rückwärts gelesen")
+    if begriffe:
+        quote = round((begriffe - blind) / begriffe * 100)
+        print(f"  {begriffe} Suchbegriffe geprüft, {blind} liefen ins Leere "
+              f"→ Trefferquote {quote} %")
+        if quote < 60:
+            print("  Unter 60 % — das Verzeichnis findet zu wenig. Der "
+                  "Aufseher schlägt dazu Alarm: landkarte aufsicht")
+    print(f"  {korrekturen} Stellen selbst berichtigt")
+    for v in vorschlaege[:6]:
+        print(f"  VORSCHLAG [{v['schwere']}] {v['befund']}")
+    print("")
+    print("Nachhalten:  landkarte lesung --bilanz")
     return 0
 
 
@@ -1183,6 +1374,8 @@ def zerleger() -> argparse.ArgumentParser:
                      help="Kapitel stichprobenartig lesen und das "
                           "Verzeichnis daran messen")
     s.add_argument("--anzahl", type=int, default=1)
+    s.add_argument("--anteil", type=float,
+                   help="Anteil der Bibliothek in Prozent, z.B. 20")
     s.add_argument("--modell")
     s.add_argument("--trocken", action="store_true")
     s.add_argument("--bilanz", action="store_true",
@@ -1263,6 +1456,32 @@ def zerleger() -> argparse.ArgumentParser:
     s.add_argument("--einbauen", action="store_true")
     s.add_argument("--ausbauen", action="store_true")
     s.set_defaults(fn=befehl_dienst)
+
+    s = u.add_parser("aufnehmen", aliases=["vergangenheit"],
+                     help="die Vergangenheit in die Bibliothek aufnehmen und "
+                          "sie danach rueckwaerts pruefen")
+    s.add_argument("--tage", type=int, default=365)
+    s.add_argument("--grenze", type=int,
+                   help="nur die neuesten N Sitzungsprotokolle lesen")
+    s.add_argument("--kapitel", type=int, default=10,
+                   help="hoechstens so viele Kapitel schreiben (0 = keine)")
+    s.add_argument("--anteil", type=float, default=20.0,
+                   help="Anteil der Bibliothek, den der Testleser danach "
+                        "rueckwaerts liest (Prozent, 0 = gar nicht)")
+    s.add_argument("--min-aufrufe", type=int, default=8, dest="min_aufrufe")
+    s.add_argument("--modell")
+    s.add_argument("--ja", action="store_true",
+                   help="nicht nachfragen, auch nicht vor Modellaufrufen")
+    s.set_defaults(fn=befehl_aufnehmen)
+
+    s = u.add_parser("bb", aliases=["signal"],
+                     help="nachschlagen und als Signalzeile melden "
+                          "(bb true N Eintraege / bb false)")
+    s.add_argument("begriff", nargs="?")
+    s.add_argument("--bilanz", action="store_true",
+                   help="Bilanz der Sitzung: bb N uses")
+    s.add_argument("--grenze", type=int, default=5)
+    s.set_defaults(fn=befehl_bb)
 
     s = u.add_parser("anweisung", aliases=["regel"],
                      help="die Regel \"zuerst nachschlagen\" in die "

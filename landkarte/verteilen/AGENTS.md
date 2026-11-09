@@ -31,6 +31,42 @@ gewachsenen Projekt sind das Minuten bis Stunden, und das Gelesene ist nach
 der Sitzung wieder weg. Das Verzeichnis beantwortet dieselbe Frage in
 Sekunden und wird mit jeder Nutzung genauer.
 
+### Sag jedes Mal, ob die Bibliothek etwas hergab
+
+Bei **jeder** Anfrage beginnt die Antwort mit einer dieser Zeilen — so ist auf
+den ersten Blick zu sehen, ob die Bibliothek benutzt wurde und ob sie etwas
+wusste:
+
+```
+bb false                  nichts in der Bibliothek gefunden
+bb true 7 Einträge        7 Fundstellen gefunden und benutzt
+```
+
+Die Zahl wird nicht geschätzt. `landkarte bb <begriff>` schlägt nach **und**
+gibt die Zeile fertig aus:
+
+```sh
+landkarte bb "mahnung"
+→ bb true 19 Einträge
+```
+
+Steht da `bb false`, ist das ein Befund und keine Panne: die Bibliothek hat
+eine Lücke. Was dann erarbeitet wird, gehört mit `landkarte notiz` oder
+`landkarte merke` hinein, damit beim nächsten Mal `bb true` dasteht.
+
+### Nach einer langen Aufgabe: Bilanz
+
+Am Ende einer längeren Aufgabe kommt eine Zeile dazu — wie oft die Bibliothek
+in dieser Sitzung überhaupt etwas geliefert hat:
+
+```sh
+landkarte bb --bilanz
+→ bb 12 uses
+```
+
+Gezählt werden ergiebige Abfragen, nachgereichte Verzeichniseinträge und die
+Male, in denen der Platzanweiser angehalten und die Auskunft mitgegeben hat.
+
 <!-- landkarte:ende -->
 
 Diese Datei ist KI-neutral. Sie funktioniert für Codex, Cursor, Copilot, Aider

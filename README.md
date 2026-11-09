@@ -82,6 +82,62 @@ Das Anhalten braucht Hooks und geht daher nur mit Claude Code. Bei ChatGPT und
 Grok steht die Regel in der Anweisungsdatei — mehr ist dort technisch nicht
 möglich, weil die KI auf dem Rechner nichts ausführen kann.
 
+## Du siehst in jeder Antwort, ob die Bibliothek etwas wusste
+
+Die Regel verlangt zwei Signalzeilen. Damit muss niemand raten, ob die KI
+nachgesehen hat:
+
+```
+bb false                  nichts in der Bibliothek gefunden
+bb true 7 Einträge        7 Fundstellen gefunden und benutzt
+bb 12 uses                Bilanz nach einer langen Aufgabe
+```
+
+Die Zahlen sind gezählt, nicht geschätzt — das Werkzeug liefert sie:
+
+```sh
+landkarte bb "mahnung"     # → bb true 19 Einträge, dann die Fundstellen
+landkarte bb --bilanz      # → bb 12 uses
+```
+
+Steht oft `bb false`, ist das ein Befund und keine Panne: die Bibliothek hat
+eine Lücke. Was dann erarbeitet wird, gehört mit `landkarte notiz` oder
+`landkarte merke` hinein.
+
+## Die Vergangenheit aufnehmen
+
+Eine frische Bibliothek ist leer — und eine leere Bibliothek sagt immer
+`bb false`. Dann glaubt niemand mehr, dass Nachschlagen sich lohnt. Ein Befehl
+holt nach, was schon passiert ist:
+
+```sh
+landkarte aufnehmen
+```
+
+Vier Schritte. Die ersten zwei kosten nichts:
+
+1. **Chronik nachtragen** — was in alten Sitzungsprotokollen steht
+2. **Regal bauen** — jedes Projekt kartografieren
+3. **Bücher schreiben** — aus den Sitzungen Kapitel mit den Fallen, die schon
+   Zeit gekostet haben
+4. **Rückwärts lesen** — der Testleser nimmt sich **20 % der Bibliothek** vor:
+   er kennt die Antwort und sucht die Frage, schlägt wirklich nach und
+   berichtigt, was ins Leere läuft
+
+Vor den Modellaufrufen sagt der Befehl, wie viele es werden, und fragt. Am
+Ende steht eine gemessene Zahl:
+
+```
+ERGEBNIS
+  3 Kapitel geschrieben, 3 davon rückwärts gelesen
+  24 Suchbegriffe geprüft, 7 liefen ins Leere → Trefferquote 71 %
+  3 Stellen selbst berichtigt
+```
+
+Unter 60 % findet das Verzeichnis zu wenig — dann sagt `landkarte aufsicht`,
+woran es liegt. Die Einrichtung bietet diesen Schritt beim ersten Mal von
+selbst an.
+
 ## Aktualisieren
 
 Welche Fassung bei dir liegt:
