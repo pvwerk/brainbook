@@ -16,7 +16,29 @@ from pathlib import Path
 from . import chronik, karte, konfig, regalwart, scan
 
 
-def projekte_finden(konf: dict | None = None) -> list[Path]:
+def lesbarkeit(ordner: Path) -> str:
+    """"lesbar", "verboten", "fehlt" oder "fehler" - der Unterschied zaehlt.
+
+    Ein Ordner, den man nicht lesen DARF, ist nicht dasselbe wie ein Ordner,
+    den es nicht mehr GIBT. Im ersten Fall muss der alte Stand bleiben, im
+    zweiten gehoert das Projekt wirklich aus dem Regal.
+    """
+    try:
+        with os.scandir(ordner) as eintraege:
+            next(iter(eintraege), None)
+        return "lesbar"
+    except PermissionError:
+        return "verboten"
+    except FileNotFoundError:
+        return "fehlt"
+    except NotADirectoryError:
+        return "fehlt"
+    except OSError:
+        return "fehler"
+
+
+def projekte_finden(konf: dict | None = None,
+                    zugriffsfehler: list[dict] | None = None) -> list[Path]:
     konf = konf or konfig.laden()
     ignorieren = set(konf.get("ignorieren", []))
     nicht = {konfig.ausklappen(p) for p in konf.get("nicht_scannen", [])}
@@ -47,7 +69,15 @@ def projekte_finden(konf: dict | None = None) -> list[Path]:
                         naechste.append(p)
                         if konfig.ist_projekt(p):
                             kandidaten.append(p)
-                except OSError:
+                except OSError as fehler:
+                    # NICHT verschlucken. Unter macOS-TCC darf ein
+                    # launchd-Dienst ~/Desktop erst mit Festplattenvollzugriff
+                    # lesen; wer hier stillschweigend weitergeht, baut ein
+                    # halbes Regal und ueberschreibt damit ein ganzes.
+                    if zugriffsfehler is not None:
+                        zugriffsfehler.append({
+                            "ordner": str(ordner),
+                            "fehler": type(fehler).__name__})
                     continue
             ebene = naechste
         for p in kandidaten:
@@ -82,10 +112,11 @@ def regal_bauen(neu_scannen: bool = True, nur: list[Path] | None = None) -> dict
     """Alle Projekte scannen und das Regal (LANDKARTE.md) schreiben."""
     konf = konfig.laden()
     nutz = chronik.nutzung()
-    projekte = nur if nur is not None else projekte_finden(konf)
+    fehler_beim_scan: list[dict] = []
+    projekte = (nur if nur is not None
+                else projekte_finden(konf, fehler_beim_scan))
 
     eintraege: list[dict] = []
-    fehler_beim_scan: list[dict] = []
     for wurzel in projekte:
         cache = konfig.PROJEKT_CACHE / f"{konfig.slug(wurzel)}.json"
         knapp = None
@@ -105,6 +136,9 @@ def regal_bauen(neu_scannen: bool = True, nur: list[Path] | None = None) -> dict
             continue
         knapp["rang"] = rang_berechnen(wurzel, nutz, knapp)
         eintraege.append(knapp)
+
+    if nur is None:
+        _verlorene_bewahren(eintraege, nutz, fehler_beim_scan)
 
     eintraege.sort(key=lambda e: -e["rang"]["punkte"])
 
@@ -144,6 +178,52 @@ def regal_bauen(neu_scannen: bool = True, nur: list[Path] | None = None) -> dict
             "regalereignisse": pflege.get("ereignisse", [])}
 
 
+def _verlorene_bewahren(eintraege: list[dict], nutz: dict,
+                        fehler: list[dict]) -> int:
+    """Projekte zurueckholen, die nur wegen fehlender Leseerlaubnis fehlen.
+
+    Vorfall 09.11.2026: der naechtliche Dienst baute das Regal auf 6 von 15
+    Projekten zusammen - genau die ausserhalb von ~/Desktop. Ursache war
+    macOS-TCC. `landkarte wo "Mahnung"` fand danach nichts mehr, obwohl es
+    abends noch 16 Stellen fand. Der alte Stand ist besser als keiner.
+    """
+    if not konfig.REGISTER.exists():
+        return 0
+    try:
+        alt = json.loads(konfig.REGISTER.read_text("utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return 0
+    vorhanden = {e.get("wurzel") for e in eintraege}
+    bewahrt = 0
+    for frueher in alt.get("projekte", []):
+        wurzel = frueher.get("wurzel")
+        if not wurzel or wurzel in vorhanden:
+            continue
+        zustand = lesbarkeit(Path(wurzel))
+        if zustand in ("lesbar", "fehlt"):
+            continue                  # wirklich weg oder gerade nicht gescannt
+        cache = konfig.PROJEKT_CACHE / f"{konfig.slug(Path(wurzel))}.json"
+        knapp = None
+        if cache.exists():
+            try:
+                knapp = json.loads(cache.read_text("utf-8"))
+            except (OSError, json.JSONDecodeError):
+                knapp = None
+        if knapp is None:
+            knapp = dict(frueher)     # Notnagel: der Registereintrag selbst
+        knapp["unlesbar"] = True
+        knapp["rang"] = rang_berechnen(Path(wurzel), nutz, knapp)
+        eintraege.append(knapp)
+        bewahrt += 1
+        fehler.append({
+            "projekt": wurzel,
+            "fehler": f"Ordner nicht lesbar ({zustand}) - alter Stand behalten. "
+                      "Unter macOS braucht der Dienst Festplattenvollzugriff: "
+                      "Systemeinstellungen > Datenschutz & Sicherheit > "
+                      "Festplattenvollzugriff"})
+    return bewahrt
+
+
 def _regal_text(eintraege: list[dict], scanfehler: list[dict]) -> str:
     z = ["# Regal \u2014 alle Projekte", "",
          f"Stand {datetime.now().strftime('%Y-%m-%d %H:%M')} \u00b7 "
@@ -173,7 +253,8 @@ def _regal_text(eintraege: list[dict], scanfehler: list[dict]) -> str:
             if r.get("zuletzt"):
                 tage = r["tage_her"]
                 zuletzt = "heute" if tage is not None and tage < 1 else f"vor {int(tage)} T"
-            z.append(f"| **{e['name']}** | {zuletzt} | {r['zugriffe']} | "
+            marke = " ⚠︎ alter Stand" if e.get("unlesbar") else ""
+            z.append(f"| **{e['name']}**{marke} | {zuletzt} | {r['zugriffe']} | "
                      f"{e.get('anzahl_dateien','?')} Dateien / "
                      f"{e.get('anzahl_zeilen','?')} Z | "
                      f"{e.get('kapitel',0)} | {e.get('fallen',0)} |")

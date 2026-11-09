@@ -16,6 +16,14 @@
     <key>Hour</key>    <integer>7</integer>
     <key>Minute</key>  <integer>30</integer>
   </dict>
+  <!-- Ein launchd-Dienst hat einen beschnittenen PATH, und /bin/sh -lc
+       liest unter zsh weder ~/.zprofile noch ~/.zshrc. Ohne das hier findet
+       der Dienst `claude` nicht und der Testleser laeuft jede Nacht leer. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>HEIM/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
   <key>StandardOutPath</key>    <string>HEIM/.landkarte/dienst-aufsicht.log</string>
   <key>StandardErrorPath</key>  <string>HEIM/.landkarte/dienst-aufsicht.log</string>
   <key>RunAtLoad</key>          <false/>

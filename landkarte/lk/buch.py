@@ -132,6 +132,41 @@ def _gescheitert(datei: str, fehler_je_datei: dict) -> str:
     return f"  (davon {anzahl} GESCHEITERT)"
 
 
+ZUSATZPFADE = ("~/.local/bin", "/opt/homebrew/bin", "/usr/local/bin",
+               "~/.bun/bin", "~/.npm-global/bin")
+
+
+def _pfad_ergaenzen(pfad: str) -> str:
+    """Die ueblichen Orte anhaengen, falls der PATH beschnitten ist."""
+    teile = [p for p in pfad.split(os.pathsep) if p]
+    for zusatz in ZUSATZPFADE:
+        aufgeloest = str(Path(zusatz).expanduser())
+        if aufgeloest not in teile and Path(aufgeloest).is_dir():
+            teile.append(aufgeloest)
+    return os.pathsep.join(teile)
+
+
+def _programm_finden(name: str) -> str:
+    """Einen Programmnamen zu einem Pfad machen.
+
+    Ein launchd-Dienst hat einen beschnittenen PATH, und `/bin/sh -lc` liest
+    unter zsh weder ~/.zprofile noch ~/.zshrc. Dann liegt `claude` in
+    ~/.local/bin und wird nicht gefunden - aufgefallen am 09.11.2026 im
+    Dienst-Log: "Testleser fehlgeschlagen: claude nicht im PATH".
+    """
+    if os.sep in name:
+        return name
+    import shutil
+    gefunden = shutil.which(name)
+    if gefunden:
+        return gefunden
+    for ordner in ZUSATZPFADE:
+        kandidat = Path(ordner).expanduser() / name
+        if kandidat.is_file() and os.access(kandidat, os.X_OK):
+            return str(kandidat)
+    return name
+
+
 def _claude_rufen(anfrage: str, modell: str) -> tuple[bool, str]:
     """Ein Sprachmodell mit einer Textaufgabe rufen.
 
@@ -147,6 +182,8 @@ def _claude_rufen(anfrage: str, modell: str) -> tuple[bool, str]:
         return False, ("kein modell_befehl eingetragen - "
                        "siehe landkarte einrichten --hilfe-modell")
     befehl = [teil.replace("{modell}", modell) for teil in vorlage]
+    befehl[0] = _programm_finden(befehl[0])
+    umgebung["PATH"] = _pfad_ergaenzen(umgebung.get("PATH", ""))
     try:
         ergebnis = subprocess.run(
             befehl, input=anfrage, capture_output=True, text=True,
