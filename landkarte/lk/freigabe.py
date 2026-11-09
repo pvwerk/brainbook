@@ -135,8 +135,26 @@ def fassung_setzen(neu: str) -> list[str]:
     return geaendert
 
 
+def _markierung_draussen(name: str) -> tuple[bool, str]:
+    """Liegt die Markierung v<name> im entfernten Repository?
+
+    Das ist die verbindliche Auskunft. Die Rohdatei unten kommt aus einem
+    Zwischenspeicher und ist direkt nach dem Schieben noch Minuten alt.
+    """
+    code, aus = _git("ls-remote", "--tags", "origin",
+                     f"refs/tags/v{name}", zeit=25)
+    if code != 0:
+        return False, aus.splitlines()[-1][:80] if aus else "nicht erreichbar"
+    return bool(aus.strip()), ""
+
+
 def _fassung_auf_github(zeit: int = 8) -> tuple[str, str]:
-    """Was gerade veroeffentlicht ist. (Fassung, Fehlergrund)"""
+    """Was ein Abholer in diesem Moment herunterlaedt. (Fassung, Fehlergrund)
+
+    Kommt aus dem Zwischenspeicher von raw.githubusercontent.com und laeuft
+    der Markierung um einige Minuten nach - das ist kein Fehler, sondern
+    genau die Auskunft, die jemand braucht, der gerade herunterlaedt.
+    """
     try:
         with urllib.request.urlopen(ROH, timeout=zeit) as antwort:
             daten = json.loads(antwort.read().decode("utf-8"))
@@ -453,6 +471,7 @@ def stand() -> dict:
         return {"lokal": lokal, "veroeffentlicht": veroeffentlicht,
                 "abruf_fehler": grund, "letzter_tag": "", "tags": [],
                 "offene_commits": [], "ungeschoben": [], "kopie": True,
+                "marke_draussen": None, "marke_fehler": "",
                 "gleich": bool(veroeffentlicht) and veroeffentlicht == lokal}
     code, letzter = _git("describe", "--tags", "--abbrev=0")
     tag = letzter if code == 0 else ""
@@ -464,8 +483,11 @@ def stand() -> dict:
     ungeschoben = ([z for z in nicht_geschoben.splitlines() if z.strip()]
                    if code == 0 else [])
     code, alle_tags = _git("tag", "--sort=-v:refname")
+    draussen, marke_fehler = _markierung_draussen(lokal)
     return {
         "kopie": False,
+        "marke_draussen": draussen,
+        "marke_fehler": marke_fehler,
         "lokal": lokal,
         "veroeffentlicht": veroeffentlicht,
         "abruf_fehler": grund,
@@ -480,21 +502,31 @@ def stand() -> dict:
 # ---------------------------------------------------------------- Freigeben
 
 def _aenderungen_schreiben(neu: str, commits: list[str], text: str) -> None:
-    kopf = "# Änderungen\n"
-    alt = AENDERUNGEN.read_text("utf-8") if AENDERUNGEN.exists() else kopf
-    if not alt.startswith(kopf):
-        alt = kopf + "\n" + alt
-    rest = alt[len(kopf):].lstrip("\n")
-    zeilen = [f"## {neu} — {time.strftime('%Y-%m-%d')}", ""]
+    """Den neuen Abschnitt oben einhaengen - aber unter das Vorwort."""
+    vorhanden = (AENDERUNGEN.read_text("utf-8").splitlines()
+                 if AENDERUNGEN.exists() else ["# Änderungen", ""])
+    # Einfuegestelle: vor der ersten Fassungsueberschrift. Titel und Vorwort
+    # stehen davor und bleiben, wo sie sind.
+    stelle = len(vorhanden)
+    for nummer, zeile in enumerate(vorhanden):
+        if zeile.startswith("## "):
+            stelle = nummer
+            break
+    abschnitt = [f"## {neu} — {time.strftime('%Y-%m-%d')}", ""]
     if text:
-        zeilen += [text, ""]
+        abschnitt += [text, ""]
     for commit in commits:
         teile = commit.split(" ", 1)
-        zeilen.append(f"- {teile[1] if len(teile) > 1 else commit}")
+        abschnitt.append(f"- {teile[1] if len(teile) > 1 else commit}")
     if not commits and not text:
-        zeilen.append("- (keine Commits seit der letzten Fassung)")
-    zeilen.append("")
-    AENDERUNGEN.write_text(kopf + "\n" + "\n".join(zeilen) + "\n" + rest, "utf-8")
+        abschnitt.append("- (keine Commits seit der letzten Fassung)")
+    abschnitt.append("")
+    vorher = vorhanden[:stelle]
+    while vorher and not vorher[-1].strip():
+        vorher.pop()
+    AENDERUNGEN.write_text(
+        "\n".join(vorher + [""] + abschnitt + vorhanden[stelle:]).rstrip() + "\n",
+        "utf-8")
 
 
 def freigeben(stufe: str | None = None, genau: str | None = None,

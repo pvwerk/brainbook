@@ -1,16 +1,16 @@
 # Änderungen
 
-## 1.2.0 — 2026-11-09
-
-Fassungen werden benannt und geprueft, bevor sie hinausgehen
-
-- Freigabe: Fassungen bewusst veroeffentlichen statt blind zu schieben
-
 Jede Zeile hier gehört zu einer Fassung, die auf GitHub liegt. Neuste oben.
 
 Entwickelt wird im Original auf dem Mac; nach GitHub geht nur, was
 `landkarte freigabe --pruefen` bestanden hat. Wer eine Fassung installiert hat,
 sieht sie mit `landkarte --fassung`.
+
+## 1.2.0 — 2026-11-09
+
+Fassungen werden benannt und geprüft, bevor sie hinausgehen.
+
+- Freigabe: Fassungen bewusst veroeffentlichen statt blind zu schieben
 
 ## 1.1.0 — 2026-11-08
 

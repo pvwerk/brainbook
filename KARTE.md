@@ -2,11 +2,11 @@
 
 > Projektgedächtnis für Menschen und KI-Assistenten
 
-Stand **2026-11-09 06:44** · 49 Dateien · 12168 Zeilen · git `main@a10e508`, 8 geändert
+Stand **2026-11-09 06:46** · 49 Dateien · 12215 Zeilen · git `main@9fa30a0`, 3 geändert
 
 `/Users/gustafbot/Projekte/werkzeuge`
 
-Letzter Commit: 2026-11-08 Installer: Hilfe und Tippfehler abfangen, bevor etwas angelegt wird
+Letzter Commit: 2026-11-09 Fassung 1.2.0 — Fassungen werden benannt und geprueft, bevor sie hinausgehen
 
 Ausgelassen (von Git ignoriert oder in `.landkarte/ignorieren.txt`): `.landkarte/karte.json`, `.landkarte/symbole.md`, `landkarte/lk/__pycache__`
 
@@ -49,7 +49,7 @@ _Noch keine._
 **`landkarte/bin/`** — 2 Dateien, 0 Zeilen
 
 - `brainbook`  _[18 Verweise]_
-- `landkarte`  _[40 Verweise]_
+- `landkarte`  _[39 Verweise]_
 
 **`landkarte/commands/`** — 1 Dateien, 23 Zeilen
 
@@ -67,29 +67,29 @@ _Noch keine._
 - `sitzungsende.sh` — Stoesst am Sitzungsende den Schreiber an - vollstaendig abgekoppelt
 - `sitzungsstart.sh` — Legt beim Sitzungsstart den Auszug der Landkarte in den Kontext
 
-**`landkarte/lk/`** — 24 Dateien, 7908 Zeilen
+**`landkarte/lk/`** — 24 Dateien, 7949 Zeilen
 
 - `__init__.py` — Landkarte - Inhaltsverzeichnis, Spickzettel, Fallenprotokoll, Mindmap
 - `aufseher.py` — Der Aufseher - erkennt Muster, findet wo die Kette hakt, schlägt vor
 - `brainbook.py` — Das Brainbook - Uebersetzung von Jans Worten in die Ablage  _[18 Verweise]_
-- `buch.py` — Der Schreiber - aus dem Rohprotokoll einer Sitzung ein Kapitel machen  _[10 Verweise]_
+- `buch.py` — Der Schreiber - aus dem Rohprotokoll einer Sitzung ein Kapitel machen  _[11 Verweise]_
 - `chronik.py` — Rohprotokoll aller Werkzeugaufrufe lesen, auswerten, verdichten  _[10 Verweise]_
 - `cli.py` — Befehlszeile der Landkarte  _[Einstieg]_
-- `digest.py` — Der kompakte Auszug, den der Hook beim Sitzungsstart in den Kontext legt  _[3 Verweise]_
+- `digest.py` — Der kompakte Auszug, den der Hook beim Sitzungsstart in den Kontext legt
 - `freigabe.py` — Eine Fassung bewusst freigeben - pruefen, stempeln, hochladen  _[4 Verweise]_
-- `karte.py` — Der Setzer - aus Scan, Buch und Notizen die KARTE.md bauen  _[4 Verweise]_
-- `konfig.py` — Einstellungen und Pfade der Landkarte, plus Projekterkennung  _[16 Verweise]_
-- `korrektur.py` — Falsches Wissen richtigstellen, ohne das Original zu löschen  _[3 Verweise]_
-- `mindmap.py` — Mindmap als eine einzelne HTML-Datei - offline, ohne Fremdserver  _[3 Verweise]_
+- `karte.py` — Der Setzer - aus Scan, Buch und Notizen die KARTE.md bauen  _[5 Verweise]_
+- `konfig.py` — Einstellungen und Pfade der Landkarte, plus Projekterkennung  _[15 Verweise]_
+- `korrektur.py` — Falsches Wissen richtigstellen, ohne das Original zu löschen  _[4 Verweise]_
+- `mindmap.py` — Mindmap als eine einzelne HTML-Datei - offline, ohne Fremdserver
 - `nachtrag.py` — Chronik rückwirkend aus den Sitzungsprotokollen von Claude Code füllen
-- `notizen.py` — Handgepflegte Notizen eines Projekts - werden nie überschrieben  _[4 Verweise]_
+- `notizen.py` — Handgepflegte Notizen eines Projekts - werden nie überschrieben  _[5 Verweise]_
 - `pruefer.py` — Die Absicherung - Gegenprobe, Zwillinge, Schiedsspruch, Zusicherungen
 - `regalwart.py` — Der Regalwart - beschriftet und sortiert die Regale, erkennt neue  _[4 Verweise]_
-- `register.py` — Der Bibliothekar - Projekte finden, nach Nutzung sortieren, Regal schreiben
-- `scan.py` — Ein Projekt einlesen und als Datenmodell zurueckgeben  _[7 Verweise]_
+- `register.py` — Der Bibliothekar - Projekte finden, nach Nutzung sortieren, Regal schreiben  _[3 Verweise]_
+- `scan.py` — Ein Projekt einlesen und als Datenmodell zurueckgeben  _[8 Verweise]_
 - `schwaerzen.py` — Zugangsdaten aus Protokolltexten entfernen, bevor sie irgendwo landen  _[7 Verweise]_
 - `sprachen.py` — Symbole, Zweckzeile, Markierungen und Verweise aus einer Datei ziehen
-- `statistik.py` — Das Werkzeug protokolliert sich selbst - unabhaengig von jeder KI  _[3 Verweise]_
+- `statistik.py` — Das Werkzeug protokolliert sich selbst - unabhaengig von jeder KI
 - `suche.py` — In Sekunden finden - Symbole, Dateien, Fallen, Kapitel, alle Projekte
 - `testleser.py` — Der Testleser - liest stichprobenartig ein Kapitel und prueft, ob
 - `vorstellung.py` — Die Bibliothek erklaert sich beim ersten Mal selbst
@@ -249,6 +249,33 @@ _Zugangsdaten aus Protokolltexten entfernen, bevor sie irgendwo landen_
   151  def woertlich_schwaerzen(text)
 ```
 
+### `landkarte/lk/karte.py`
+_Der Setzer - aus Scan, Buch und Notizen die KARTE.md bauen_
+
+```
+   12  konstante SPITZE_DATEIEN
+   13  konstante MAX_SYMBOLE
+   16  def _pruefmarke(kopf)   # Zeigt in der Karte, wie gut ein Kapitel abgesichert ist.
+   34  def _zeit(stempel)
+   38  def _tabelle(zeilen, kopf)
+   49  def _baum(dateien, nutzung_dateien)   # Ordnerbaum mit Zweck je Datei, nach Ordnern gruppiert.
+   88  def _symbole(dateien, nutzung_dateien)
+  112  def _symboldatei_schreiben(modell, wurzel)   # Vollstaendige Symbolliste getrennt ablegen, damit KARTE.md lesbar blei
+  134  def bauen(wurzel, modell, nutzungsdaten)   # KARTE.md, .landkarte/karte.json und .landkarte/symbole.md schreiben.
+```
+
+### `landkarte/lk/notizen.py`
+_Handgepflegte Notizen eines Projekts - werden nie überschrieben_
+
+```
+    8  konstante VORLAGE
+   33  konstante ABSCHNITTE
+   36  def pfad(wurzel)
+   40  def anlegen_wenn_fehlt(wurzel)
+   48  def laden(wurzel)
+   71  def anhaengen(wurzel, abschnitt, text)   # Einen Punkt in einen Abschnitt schreiben, Abschnitt notfalls anlegen.
+```
+
 ### `landkarte/lk/cli.py`
 _Befehlszeile der Landkarte_
 
@@ -301,10 +328,10 @@ _Eine Fassung bewusst freigeben - pruefen, stempeln, hochladen_
    96  def fassung_im_paket()   # Welche Fassung im Modul steht (muss mit plugin.json uebereinstimmen).
   102  def naechste(stufe)   # gross -> 2.0.0, klein -> 1.2.0, fehler -> 1.1.1
   116  def fassung_setzen(neu)   # Die Nummer an beiden Stellen setzen. Gibt die geaenderten Dateien.
-  138  def _fassung_auf_github(zeit)   # Was gerade veroeffentlicht ist. (Fassung, Fehlergrund)
-  152  def _pruef_herkunft()
-  177  def _pruef_arbeitsbaum()
-       ... 15 weitere
+  138  def _markierung_draussen(name)   # Liegt die Markierung v<name> im entfernten Repository?
+  151  def _fassung_auf_github(zeit)   # Was ein Abholer in diesem Moment herunterlaedt. (Fassung, Fehlergrund)
+  170  def _pruef_herkunft()
+       ... 16 weitere
 ```
 
 ### `landkarte/lk/regalwart.py`
@@ -343,31 +370,16 @@ _Brainbook & Landkarte_
   152  ueberschrift2 Mehr
 ```
 
-### `landkarte/lk/karte.py`
-_Der Setzer - aus Scan, Buch und Notizen die KARTE.md bauen_
+### `landkarte/lk/korrektur.py`
+_Falsches Wissen richtigstellen, ohne das Original zu löschen_
 
 ```
-   12  konstante SPITZE_DATEIEN
-   13  konstante MAX_SYMBOLE
-   16  def _pruefmarke(kopf)   # Zeigt in der Karte, wie gut ein Kapitel abgesichert ist.
-   34  def _zeit(stempel)
-   38  def _tabelle(zeilen, kopf)
-   49  def _baum(dateien, nutzung_dateien)   # Ordnerbaum mit Zweck je Datei, nach Ordnern gruppiert.
-   88  def _symbole(dateien, nutzung_dateien)
-  112  def _symboldatei_schreiben(modell, wurzel)   # Vollstaendige Symbolliste getrennt ablegen, damit KARTE.md lesbar blei
-  134  def bauen(wurzel, modell, nutzungsdaten)   # KARTE.md, .landkarte/karte.json und .landkarte/symbole.md schreiben.
-```
-
-### `landkarte/lk/notizen.py`
-_Handgepflegte Notizen eines Projekts - werden nie überschrieben_
-
-```
-    8  konstante VORLAGE
-   33  konstante ABSCHNITTE
-   36  def pfad(wurzel)
-   40  def anlegen_wenn_fehlt(wurzel)
-   48  def laden(wurzel)
-   71  def anhaengen(wurzel, abschnitt, text)   # Einen Punkt in einen Abschnitt schreiben, Abschnitt notfalls anlegen.
+   17  konstante DATEI
+   20  def pfad(wurzel)
+   24  def _kern(text)   # Vergleichsform: ohne Auszeichnung, ohne Datumsanhang, zusammengezogen.
+   31  def anlegen(wurzel, falsch, richtig, grund)
+   47  def laden(wurzel)
+   66  def anwenden(eintraege, korrekturen, fuer_auszug)   # Falsche Einträge markieren oder (für den Auszug) ersetzen.
 ```
 
 ### `landkarte/README.md`
@@ -395,87 +407,89 @@ _Landkarte_
   373  ueberschrift3 Was geprüft wird
 ```
 
-### `landkarte/lk/statistik.py`
-_Das Werkzeug protokolliert sich selbst - unabhaengig von jeder KI_
+### `landkarte/lk/register.py`
+_Der Bibliothekar - Projekte finden, nach Nutzung sortieren, Regal schreiben_
 
 ```
-   43  konstante ORDNER
-   44  konstante FASSUNG
-   47  konstante NIE
-   52  def _konf()
-   56  def aktiv()
-   60  def teilnehmer()   # Freier Name oder, wenn keiner gesetzt ist, eine zufaellige Kennung.
-   73  def _salz()
-   83  def kurzhash(wert)   # Gesalzener Kurz-Hash. Erkennt Wiederholung, verraet den Namen nicht.
-   91  def _klasse(wert, grenzen)   # Zahl auf eine Groessenklasse zurueckfuehren.
-  101  def struktur(wurzel)   # Die FORM eines Projekts, nicht seine Identitaet.
-  132  konstante _ZEICHENKETTE
-  133  konstante _PFADARTIG
-  134  konstante _ZAHL
-  135  konstante _HEX
-  138  def meldung_entschaerfen(text)   # Eine Fehlermeldung auf ihr Muster zurueckfuehren.
-  154  def _pfade_entfernen(text)   # Absolute Pfade auf den Dateinamen kuerzen, Heimordner ersetzen.
-  164  def umgebung()
-  176  def _datei()
-  181  def festhalten(befehl, flaggen, code, dauer_ms, ergebnis, ursache, projekt)   # Einen Aufruf anhaengen. Still - ein Protokollfehler darf nie stoeren.
-  214  def absturz_festhalten(befehl, flaggen, dauer_ms, projekt)   # Ursache strukturiert festhalten: Klasse, eigene Codestelle, Muster.
-  241  def _lesen(monate)
-  260  def _reibung(saetze)   # Wo hakt es: derselbe Befehl zweimal hintereinander, oder ein Fehlschla
-       ... 4 weitere
+   19  def projekte_finden(konf)
+   62  def rang_berechnen(wurzel, nutz, modell_knapp)   # Platz im Regal: Nutzungshäufigkeit, Aktualität, Größe.
+   81  def regal_bauen(neu_scannen, nur)   # Alle Projekte scannen und das Regal (LANDKARTE.md) schreiben.
+  147  def _regal_text(eintraege, scanfehler)
 ```
 
-### `landkarte/lk/korrektur.py`
-_Falsches Wissen richtigstellen, ohne das Original zu löschen_
+### `landkarte/lk/pruefer.py`
+_Die Absicherung - Gegenprobe, Zwillinge, Schiedsspruch, Zusicherungen_
 
 ```
-   17  konstante DATEI
-   20  def pfad(wurzel)
-   24  def _kern(text)   # Vergleichsform: ohne Auszeichnung, ohne Datumsanhang, zusammengezogen.
-   31  def anlegen(wurzel, falsch, richtig, grund)
-   47  def laden(wurzel)
-   66  def anwenden(eintraege, korrekturen, fuer_auszug)   # Falsche Einträge markieren oder (für den Auszug) ersetzen.
+   33  konstante PRUEFORDNER
+   34  konstante ABWEICHUNGEN
+   38  konstante SPRUCHBUCH
+   39  konstante MAX_FASSUNG
+   42  def protokoll_fingerabdruck(protokoll)   # Kennung des Protokoll-FORMATS, nicht des Inhalts.
+   56  def spruch_festhalten(satz)   # Einen Schiedsspruch anhaengen. Niemals ueberschreiben.
+   64  konstante _SCHLUESSELWORT
+   70  konstante _BEKANNTE_PREFIXE
+   76  konstante _BEARER
+   77  konstante _PLATZHALTER
+   85  def geheimnisverdacht(zeile)   # Gibt den verdaechtigen Ausschnitt zurueck, sonst None.
+  117  def transkript_pfad(sitzung)
+  127  def transkript_aufrufe(sitzung)   # Werkzeugaufrufe aus dem Sitzungsprotokoll von Claude Code.
+  169  def chronik_gegenpruefen(sitzung)   # Hook-Chronik gegen das Sitzungsprotokoll stellen, Aufruf für Aufruf.
+  220  def _zaehlen(liste)
+  229  konstante SCHIEDS_ANWEISUNG
+  279  konstante ARTEN
+  282  def abweichungen_lesen(text)   # Die Zeilen des Schiedsspruchs in Daten verwandeln.
+  303  def _abweichungen_trennen(text)
+  312  def _aehnlichkeit(a, b)
+  317  def kapitel_doppelt(sitzung, modell)   # Zwei unabhängige Schreiber, dann Schiedsspruch. Ergebnis wird abgelegt
+  470  def _abweichungen_merken(sitzung, projekt, modell, geparst, reihenfolge, aehnlichkeit, fingerabdruck)   # Strichliste der Abweichungen - Rohstoff für den Aufseher.
+       ... 6 weitere
 ```
 
-### `landkarte/lk/digest.py`
-_Der kompakte Auszug, den der Hook beim Sitzungsstart in den Kontext legt_
+### `landkarte/lk/sprachen.py`
+_Symbole, Zweckzeile, Markierungen und Verweise aus einer Datei ziehen_
 
 ```
-   17  konstante GRENZE
-   20  def _kuerzen(zeilen, grenze)
-   36  def bauen(wurzel, grenze)   # Auszug für ein Projekt. Leerer Text, wenn es keine Karte gibt.
-```
-
-### `landkarte/lk/mindmap.py`
-_Mindmap als eine einzelne HTML-Datei - offline, ohne Fremdserver_
-
-```
-   13  konstante KOPF
-  248  def bauen(modell, ziel)   # HTML-Mindmap aus einem Scan-Modell schreiben.
-  279  def mermaid(modell, grenze)   # Kleiner Graph als Mermaid-Text - für schnelles Einfügen in Notizen.
+   16  konstante MARKIERUNG
+   20  konstante GEHEIM_VERDACHT
+   21  konstante KOMMENTAR_ZEICHEN
+   25  konstante ZWECK_MARKER
+   28  def _saubern(zeile)
+   39  def zweck(text, pfad)   # Einzeiler, was die Datei tut. Leer, wenn die Datei es nicht sagt.
+  106  def _kuerzen(s, grenze)
+  123  def _py(text)
+  227  konstante _ENDUNG_ZU_SPRACHE
+  237  def sprache(pfad)
+  243  def symbole(text, pfad)   # Definitionen der obersten Ebene mit Zeilennummer.
+  285  def markierungen(text)
+  302  konstante _IMPORT_PY
+  303  konstante _IMPORT_JS
+  304  konstante _IMPORT_PHP
+  307  def rohverweise(text, pfad)   # Textstellen, die auf andere Dateien zeigen - noch nicht aufgeloest.
 ```
 
 ## Verflechtung
 
-- `landkarte/lk/cli.py` → `landkarte/bin/landkarte`, `landkarte/lk/vorstellung.py`, `landkarte/lk/statistik.py`, `landkarte/lk/nachtrag.py`, `landkarte/lk/konfig.py`, `landkarte/lk/aufseher.py`, `landkarte/lk/mindmap.py`, `landkarte/lk/chronik.py`
-- `landkarte/README.md` → `landkarte/lk/digest.py`, `landkarte/lk/mindmap.py`, `landkarte/verteilen/einrichten.sh`, `landkarte/lk/chronik.py`, `landkarte/bin/landkarte`, `landkarte/lk/scan.py`, `landkarte/lk/schwaerzen.py`, `landkarte/lk/freigabe.py`
-- `landkarte/lk/pruefer.py` → `landkarte/lk/korrektur.py`, `landkarte/lk/chronik.py`, `landkarte/bin/landkarte`, `landkarte/lk/register.py`, `landkarte/hooks/hooks.json`, `landkarte/lk/karte.py`, `landkarte/lk/buch.py`, `landkarte/lk/notizen.py`
-- `landkarte/lk/digest.py` → `landkarte/lk/korrektur.py`, `landkarte/lk/chronik.py`, `landkarte/bin/landkarte`, `landkarte/lk/regalwart.py`, `landkarte/lk/buch.py`, `landkarte/lk/notizen.py`, `landkarte/lk/konfig.py`, `landkarte/bin/brainbook`
-- `landkarte/lk/aufseher.py` → `landkarte/lk/pruefer.py`, `landkarte/lk/chronik.py`, `landkarte/bin/landkarte`, `landkarte/lk/register.py`, `landkarte/lk/karte.py`, `landkarte/lk/buch.py`, `landkarte/hooks/chronist.sh`, `landkarte/lk/testleser.py`
-- `landkarte/lk/karte.py` → `landkarte/lk/korrektur.py`, `landkarte/lk/chronik.py`, `landkarte/bin/landkarte`, `landkarte/lk/scan.py`, `landkarte/lk/buch.py`, `landkarte/lk/notizen.py`, `landkarte/lk/testleser.py`, `landkarte/lk/konfig.py`
-- `landkarte/lk/statistik.py` → `landkarte/verteilen/einrichten.sh`, `landkarte/bin/landkarte`, `landkarte/lk/sprachen.py`, `landkarte/lk/schwaerzen.py`, `landkarte/lk/konfig.py`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`
-- `landkarte/lk/vorstellung.py` → `landkarte/bin/landkarte`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`, `README.md`, `landkarte/README.md`, `landkarte/lk/konfig.py`, `landkarte/verteilen/einrichten.sh`
-- `landkarte/skills/landkarte/SKILL.md` → `landkarte/lk/mindmap.py`, `landkarte/bin/landkarte`, `landkarte/lk/scan.py`, `landkarte/lk/schwaerzen.py`, `landkarte/hooks/hooks.json`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`
-- `landkarte/lk/freigabe.py` → `landkarte/bin/landkarte`, `landkarte/lk/schwaerzen.py`, `AENDERUNGEN.md`, `landkarte/lk/pruefer.py`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`
-- `landkarte/lk/register.py` → `landkarte/lk/chronik.py`, `landkarte/bin/landkarte`, `landkarte/lk/scan.py`, `landkarte/lk/regalwart.py`, `landkarte/lk/karte.py`, `landkarte/lk/buch.py`, `landkarte/lk/konfig.py`
-- `landkarte/verteilen/RUECKMELDUNG.md` → `landkarte/bin/landkarte`, `landkarte/lk/scan.py`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`, `landkarte/lk/statistik.py`, `landkarte/verteilen/einrichten.sh`
-- `landkarte/verteilen/paket-bauen.py` → `landkarte/bin/landkarte`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`, `landkarte/lk/freigabe.py`, `landkarte/hooks/hooks.json`, `landkarte/verteilen/einrichten.sh`
-- `landkarte/lk/konfig.py` → `landkarte/bin/landkarte`, `LICENSE`, `landkarte/lk/statistik.py`, `landkarte/hooks/hooks.json`, `README.md`, `landkarte/README.md`
-- `landkarte/lk/testleser.py` → `landkarte/bin/landkarte`, `landkarte/lk/regalwart.py`, `landkarte/lk/karte.py`, `landkarte/lk/buch.py`, `landkarte/lk/suche.py`, `landkarte/lk/konfig.py`
-- `README.md` → `landkarte/verteilen/einrichten.sh`, `landkarte/bin/landkarte`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`
-- `landkarte/lk/scan.py` → `landkarte/lk/sprachen.py`, `README.md`, `landkarte/README.md`, `landkarte/lk/konfig.py`, `landkarte/bin/landkarte`
+- `landkarte/lk/cli.py` → `landkarte/lk/suche.py`, `landkarte/lk/korrektur.py`, `landkarte/lk/vorstellung.py`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`, `landkarte/lk/aufseher.py`, `landkarte/lk/karte.py`
+- `landkarte/README.md` → `landkarte/lk/buch.py`, `landkarte/lk/mindmap.py`, `landkarte/lk/freigabe.py`, `landkarte/lk/schwaerzen.py`, `landkarte/bin/landkarte`, `landkarte/lk/digest.py`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`
+- `landkarte/lk/pruefer.py` → `landkarte/lk/konfig.py`, `landkarte/lk/buch.py`, `landkarte/lk/notizen.py`, `landkarte/lk/register.py`, `landkarte/bin/landkarte`, `landkarte/lk/korrektur.py`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`
+- `landkarte/lk/digest.py` → `landkarte/lk/konfig.py`, `landkarte/lk/buch.py`, `landkarte/lk/notizen.py`, `landkarte/bin/landkarte`, `landkarte/lk/korrektur.py`, `landkarte/lk/regalwart.py`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`
+- `landkarte/lk/aufseher.py` → `landkarte/lk/pruefer.py`, `landkarte/lk/konfig.py`, `landkarte/lk/buch.py`, `landkarte/lk/register.py`, `landkarte/lk/testleser.py`, `landkarte/bin/landkarte`, `landkarte/lk/chronik.py`, `landkarte/lk/karte.py`
+- `landkarte/lk/karte.py` → `landkarte/lk/konfig.py`, `landkarte/lk/buch.py`, `landkarte/lk/notizen.py`, `landkarte/lk/testleser.py`, `landkarte/bin/landkarte`, `landkarte/lk/korrektur.py`, `landkarte/lk/chronik.py`, `landkarte/lk/scan.py`
+- `landkarte/lk/statistik.py` → `landkarte/lk/konfig.py`, `landkarte/lk/schwaerzen.py`, `landkarte/bin/landkarte`, `landkarte/verteilen/einrichten.sh`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`, `landkarte/lk/sprachen.py`
+- `landkarte/lk/vorstellung.py` → `landkarte/lk/konfig.py`, `README.md`, `landkarte/README.md`, `landkarte/bin/landkarte`, `landkarte/verteilen/einrichten.sh`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`
+- `landkarte/skills/landkarte/SKILL.md` → `landkarte/lk/mindmap.py`, `landkarte/lk/schwaerzen.py`, `landkarte/bin/landkarte`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`, `landkarte/hooks/hooks.json`, `landkarte/lk/scan.py`
+- `landkarte/lk/freigabe.py` → `AENDERUNGEN.md`, `landkarte/lk/schwaerzen.py`, `landkarte/bin/landkarte`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`, `landkarte/lk/pruefer.py`
+- `landkarte/lk/register.py` → `landkarte/lk/konfig.py`, `landkarte/lk/buch.py`, `landkarte/bin/landkarte`, `landkarte/lk/regalwart.py`, `landkarte/lk/chronik.py`, `landkarte/lk/scan.py`, `landkarte/lk/karte.py`
+- `landkarte/verteilen/RUECKMELDUNG.md` → `landkarte/bin/landkarte`, `landkarte/verteilen/einrichten.sh`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`, `landkarte/lk/statistik.py`, `landkarte/lk/scan.py`
+- `landkarte/verteilen/paket-bauen.py` → `landkarte/lk/freigabe.py`, `landkarte/bin/landkarte`, `landkarte/verteilen/einrichten.sh`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`, `landkarte/hooks/hooks.json`
+- `landkarte/lk/konfig.py` → `README.md`, `landkarte/README.md`, `LICENSE`, `landkarte/bin/landkarte`, `landkarte/lk/statistik.py`, `landkarte/hooks/hooks.json`
+- `landkarte/lk/testleser.py` → `landkarte/lk/konfig.py`, `landkarte/lk/buch.py`, `landkarte/lk/suche.py`, `landkarte/bin/landkarte`, `landkarte/lk/regalwart.py`, `landkarte/lk/karte.py`
+- `README.md` → `landkarte/bin/landkarte`, `landkarte/verteilen/einrichten.sh`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`
+- `landkarte/lk/scan.py` → `landkarte/lk/konfig.py`, `landkarte/lk/sprachen.py`, `landkarte/bin/landkarte`, `README.md`, `landkarte/README.md`
 - `landkarte/verteilen/AGENTS.md` → `landkarte/lk/scan.py`, `landkarte/bin/landkarte`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`
-- `landkarte/verteilen/START-HIER.md` → `landkarte/verteilen/einrichten.sh`, `landkarte/bin/landkarte`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`
-- `landkarte/verteilen/brainbook-einrichten.py` → `landkarte/verteilen/einrichten.sh`, `landkarte/bin/landkarte`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`
+- `landkarte/verteilen/START-HIER.md` → `landkarte/bin/landkarte`, `landkarte/verteilen/einrichten.sh`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`
+- `landkarte/verteilen/brainbook-einrichten.py` → `landkarte/bin/landkarte`, `landkarte/verteilen/einrichten.sh`, `landkarte/bin/brainbook`, `landkarte/commands/brainbook.md`, `landkarte/lk/brainbook.py`
 
 ## Offene Punkte
 
@@ -493,22 +507,22 @@ _Mindmap als eine einzelne HTML-Datei - offline, ohne Fremdserver_
 - `landkarte/lk/cli.py:172` OFFEN: [: args.grenze]:
 - `landkarte/lk/cli.py:397` ACHTUNG: ähnlich: "
 - `landkarte/lk/cli.py:526` ACHTUNG: Positionsvorliebe: "
-- `landkarte/lk/cli.py:938` OFFEN: s["offene_commits"]
-- `landkarte/lk/cli.py:939` OFFEN: )} Commit(s)")
-- `landkarte/lk/cli.py:940` OFFEN: [:12]:
-- `landkarte/lk/cli.py:942` OFFEN: ) > 12:
-- `landkarte/lk/cli.py:943` OFFEN: ) - 12} weitere")
-- `landkarte/lk/cli.py:947` OFFEN: 
-- `landkarte/lk/cli.py:1056` OFFEN: ")
+- `landkarte/lk/cli.py:944` OFFEN: s["offene_commits"]
+- `landkarte/lk/cli.py:945` OFFEN: )} Commit(s)")
+- `landkarte/lk/cli.py:946` OFFEN: [:12]:
+- `landkarte/lk/cli.py:948` OFFEN: ) > 12:
+- `landkarte/lk/cli.py:949` OFFEN: ) - 12} weitere")
+- `landkarte/lk/cli.py:953` OFFEN: or s["ungeschoben"]:
+- `landkarte/lk/cli.py:1065` OFFEN: ")
 - `landkarte/lk/digest.py:116` OFFEN: list(notiz.get("Offen", []))
 - `landkarte/lk/digest.py:118` OFFEN: += k.get("offen", [])
 - `landkarte/lk/digest.py:119` OFFEN: 
 - `landkarte/lk/digest.py:120` OFFEN: ")
 - `landkarte/lk/digest.py:121` OFFEN: [:10]:
-- `landkarte/lk/freigabe.py:181` OFFEN: []
-- `landkarte/lk/freigabe.py:190` OFFEN: .append(pfad)
-- `landkarte/lk/freigabe.py:192` OFFEN: ,
-- `landkarte/lk/freigabe.py:193` OFFEN: else
-- `landkarte/lk/freigabe.py:194` OFFEN: )} nicht eingecheckte Datei(en): {', '.join(offen[:6])}"
-- `landkarte/lk/freigabe.py:461` OFFEN: [z for z in log.splitlines() if z.strip()] if code == 0 else []
+- `landkarte/lk/freigabe.py:199` OFFEN: []
+- `landkarte/lk/freigabe.py:208` OFFEN: .append(pfad)
+- `landkarte/lk/freigabe.py:210` OFFEN: ,
+- `landkarte/lk/freigabe.py:211` OFFEN: else
+- `landkarte/lk/freigabe.py:212` OFFEN: )} nicht eingecheckte Datei(en): {', '.join(offen[:6])}"
+- `landkarte/lk/freigabe.py:480` OFFEN: [z for z in log.splitlines() if z.strip()] if code == 0 else []
 

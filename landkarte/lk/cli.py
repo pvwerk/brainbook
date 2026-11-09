@@ -915,11 +915,17 @@ def befehl_einrichten(args) -> int:
 def _freigabe_stand() -> int:
     s = _freigabe.stand()
     print(f"Fassung hier          {s['lokal']}")
+    if s.get("marke_draussen") is True:
+        print(f"Auf GitHub            v{s['lokal']} ist veroeffentlicht")
+    elif s.get("marke_draussen") is False:
+        print(f"Auf GitHub            v{s['lokal']} fehlt noch"
+              + (f" ({s['marke_fehler']})" if s.get("marke_fehler") else ""))
     if s["veroeffentlicht"]:
-        gleich = "gleich" if s["gleich"] else "ABWEICHEND"
-        print(f"Fassung auf GitHub    {s['veroeffentlicht']}   ({gleich})")
+        nachlauf = ("" if s["gleich"]
+                    else "   (Zwischenspeicher, laeuft ein paar Minuten nach)")
+        print(f"Abholer sieht gerade  {s['veroeffentlicht']}{nachlauf}")
     else:
-        print(f"Fassung auf GitHub    nicht abrufbar ({s['abruf_fehler']})")
+        print(f"Abholer sieht gerade  nicht abrufbar ({s['abruf_fehler']})")
     if s.get("kopie"):
         print("")
         if s["gleich"]:
@@ -944,11 +950,14 @@ def _freigabe_stand() -> int:
     if s["ungeschoben"]:
         print(f"Noch nicht geschoben  {len(s['ungeschoben'])} Commit(s)")
     print("")
-    if offen:
+    if offen or s["ungeschoben"]:
         print("Naechster Schritt:  landkarte freigabe --neu fehler   (Probe, "
               "aendert nichts)")
-    else:
+    elif s.get("marke_draussen"):
         print("Nichts freizugeben - hier steht genau das, was draussen liegt.")
+    else:
+        print(f"Fassung {s['lokal']} ist hier fertig, aber noch nicht draussen:"
+              " git push origin main --follow-tags")
     return 0
 
 
