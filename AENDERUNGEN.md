@@ -6,6 +6,12 @@ Entwickelt wird im Original auf dem Mac; nach GitHub geht nur, was
 `landkarte freigabe --pruefen` bestanden hat. Wer eine Fassung installiert hat,
 sieht sie mit `landkarte --fassung`.
 
+## 1.4.0 — 2026-11-09
+
+Regal bleibt vollstaendig, auch wenn ein Ordner gesperrt ist
+
+- Regal schrumpft nicht mehr still, Dienst findet claude
+
 ## 1.3.1 — 2026-11-09
 
 Platzanweiser bewacht auch Bash
