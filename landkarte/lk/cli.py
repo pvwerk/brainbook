@@ -13,6 +13,7 @@ from pathlib import Path
 
 from . import aufseher, brainbook, buch, chronik, digest, karte, konfig
 from . import freigabe as _freigabe
+from . import platzanweiser
 from . import mindmap, notizen
 from . import korrektur, nachtrag, pruefer, regalwart, register, scan
 from . import schwaerzen as _schw
@@ -115,6 +116,7 @@ def befehl_vorstellen(args) -> int:
 
 
 def befehl_finde(args) -> int:
+    platzanweiser.nachgeschlagen_merken("*")
     treffer = suche.finden(args.begriff, projekt=args.projekt)
     messen(treffer=len(treffer), laenge=len(args.begriff))
     print(suche.ausgeben(treffer, args.begriff))
@@ -214,6 +216,7 @@ def befehl_merke(args) -> int:
 
 
 def befehl_brainbook(args) -> int:
+    platzanweiser.nachgeschlagen_merken("*")
     if args.begriff:
         treffer = brainbook.nachschlagen(args.begriff)
         if not treffer:
@@ -250,6 +253,9 @@ def befehl_wo(args) -> int:
     """
     hier = projektwurzel(None)
     hier_pfad = str(hier.resolve())
+    # Dem Platzanweiser sagen, dass nachgeschlagen wurde. `wo` geht ueber alle
+    # Regale, darum gilt es fuer alles, was danach kommt.
+    platzanweiser.nachgeschlagen_merken("*")
 
     # Zuerst das Brainbook: Jans Wort zaehlt mehr als jeder Ordnername.
     aus_brainbook = brainbook.nachschlagen(args.begriff)
@@ -625,6 +631,7 @@ def befehl_symbole(args) -> int:
 
 def befehl_zeig(args) -> int:
     wurzel = projektwurzel(args.pfad)
+    platzanweiser.nachgeschlagen_merken(str(wurzel.resolve()))
     p = wurzel / "KARTE.md"
     if not p.exists():
         print(f"Keine Karte in {_kurz(wurzel)}. → landkarte scan", file=sys.stderr)
@@ -1021,6 +1028,63 @@ def befehl_freigabe(args) -> int:
     return 0
 
 
+def befehl_anweisung(args) -> int:
+    """Die Regel "zuerst nachschlagen" in die Anweisungsdatei einhaengen."""
+    from . import anweisung
+    if args.zeigen:
+        print(anweisung.block())
+        return 0
+    konf = konfig.laden()
+    ziel = (Path(args.datei).expanduser() if args.datei
+            else anweisung.zieldatei(args.ki or konf.get("ki", "")))
+    ergebnis = anweisung.einhaengen(ziel, oben=not args.unten)
+    print(f"{ergebnis}: {_kurz(ziel)}")
+    if ergebnis in ("angelegt", "oben eingesetzt", "ergaenzt", "ersetzt"):
+        print("Eine Kopie des vorherigen Stands liegt in "
+              f"{_kurz(Path.home() / '.Papierkorb-Claude' / 'landkarte-anweisung')}")
+    if ziel.name != "CLAUDE.md":
+        print("")
+        print("Diese Datei liest keine KI von selbst — leg sie deiner KI vor "
+              "oder kopiere den Abschnitt in ihre Anweisungen.")
+    return 0
+
+
+def befehl_wache(args) -> int:
+    """Platzanweiser: Stand zeigen, abschalten oder von Hand befragen."""
+    konf = konfig.laden()
+    if args.aus or args.an:
+        konf["wache"] = bool(args.an)
+        konfig.schreiben(konf)
+        print("Platzanweiser " + ("an" if args.an else "aus")
+              + ". Wirkt ab der naechsten Sitzung.")
+        return 0
+    if args.pfad:
+        entscheidung = platzanweiser.pruefen(
+            "Read", {"file_path": str(Path(args.pfad).expanduser())})
+        if entscheidung.get("stopp"):
+            print(entscheidung["grund"])
+            return 1
+        if entscheidung.get("hinweis"):
+            print(entscheidung["hinweis"])
+            return 0
+        if not konf.get("wache", True):
+            print("Platzanweiser ist abgeschaltet (landkarte wache --an).")
+        else:
+            print("Durchlassen - kein kartografiertes Projekt, oder in dieser "
+                  "Sitzung wurde schon nachgeschlagen.")
+        return 0
+    kennung = platzanweiser.sitzung()
+    stand = platzanweiser._laden()["sitzungen"].get(kennung, {})
+    print(f"Platzanweiser: {'an' if konf.get('wache', True) else 'aus'}")
+    print(f"Sitzung:       {kennung[:16]}")
+    nach = stand.get("nachgeschlagen", [])
+    print(f"Nachgeschlagen: {', '.join(_kurz(n) for n in nach) or 'noch nicht'}")
+    gestoppt = stand.get("gestoppt", [])
+    print(f"Angehalten:     {', '.join(_kurz(n) for n in gestoppt) or 'niemand'}")
+    print(f"Nachgereicht:   {len(stand.get('gezeigt', []))} Seiten")
+    return 0
+
+
 def zerleger() -> argparse.ArgumentParser:
     from . import __version__
     p = argparse.ArgumentParser(
@@ -1199,6 +1263,23 @@ def zerleger() -> argparse.ArgumentParser:
     s.add_argument("--einbauen", action="store_true")
     s.add_argument("--ausbauen", action="store_true")
     s.set_defaults(fn=befehl_dienst)
+
+    s = u.add_parser("anweisung", aliases=["regel"],
+                     help="die Regel \"zuerst nachschlagen\" in die "
+                          "Anweisungsdatei einhaengen")
+    s.add_argument("--datei", help="Zieldatei, Standard richtet sich nach der KI")
+    s.add_argument("--ki", help="claude-code, codex oder etwas anderes")
+    s.add_argument("--unten", action="store_true",
+                   help="ans Ende haengen statt nach oben")
+    s.add_argument("--zeigen", action="store_true", help="nur den Text ausgeben")
+    s.set_defaults(fn=befehl_anweisung)
+
+    s = u.add_parser("wache", aliases=["platzanweiser"],
+                     help="Platzanweiser: Stand, abschalten, von Hand pruefen")
+    s.add_argument("pfad", nargs="?", help="eine Datei zur Probe vorlegen")
+    s.add_argument("--aus", action="store_true")
+    s.add_argument("--an", action="store_true")
+    s.set_defaults(fn=befehl_wache)
 
     s = u.add_parser("freigabe", aliases=["freigeben"],
                      help="Stand gegen GitHub zeigen oder eine Fassung freigeben")

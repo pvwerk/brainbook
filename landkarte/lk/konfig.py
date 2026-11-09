@@ -36,6 +36,9 @@ STANDARD = {
     "aufseher_modell": "sonnet",
     "aufseher_doppelt": True,
     "kapitel_min_aufrufe": 8,
+    # Platzanweiser: haelt eine KI an, die Code liest, ohne nachzuschlagen.
+    # Hoechstens einmal je Projekt und Sitzung.
+    "wache": True,
     # Selbstprotokoll: nur lokal, verlaesst den Rechner nur per Export
     "statistik": True,
     "teilnehmer": "",

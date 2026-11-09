@@ -438,6 +438,89 @@ def _pruef_installation() -> dict:
                        f"{anzahl} Dateien ausgepackt, {len(proben)} Befehle laufen")
 
 
+def _pruef_platzanweiser() -> dict:
+    """Der Waechter muss anhalten, danach durchlassen - und nie abstuerzen.
+
+    Gespielt wird mit einem Wegwerf-Projekt in einem Wegwerf-Heim: ein
+    Ordner mit KARTE.md und karte.json, nichts Echtes.
+    """
+    einstieg = PLUGIN / "bin" / "platzanweiser"
+    if not einstieg.exists():
+        return _befund("Platzanweiser", False, "bin/platzanweiser fehlt")
+    with tempfile.TemporaryDirectory(prefix="landkarte-wache-") as ordner:
+        o = Path(ordner)
+        heim = o / "heim"
+        (heim / ".landkarte").mkdir(parents=True)
+        projekt = o / "wegwerfprojekt"
+        (projekt / ".landkarte").mkdir(parents=True)
+        (projekt / "KARTE.md").write_text("# Wegwerfprojekt\n", "utf-8")
+        (projekt / ".landkarte" / "karte.json").write_text(json.dumps({
+            "name": "wegwerfprojekt", "wurzel": str(projekt), "zweck": "Probe",
+            "dateien": [{"pfad": "a.py", "zweck": "Zweck von a",
+                         "symbole": [{"name": "tu_was", "zeile": 7}]},
+                        {"pfad": "b.py", "zweck": "Zweck von b",
+                         "symbole": [{"name": "noch_was", "zeile": 3}]}],
+        }), "utf-8")
+        (projekt / "a.py").write_text("def tu_was():\n    pass\n", "utf-8")
+        (projekt / "b.py").write_text("def noch_was():\n    pass\n", "utf-8")
+
+        def frage(datei: str) -> tuple[int, str]:
+            eingabe = json.dumps({
+                "session_id": "pruefung", "cwd": str(projekt),
+                "tool_name": "Read",
+                "tool_input": {"file_path": str(projekt / datei)}})
+            umgebung = dict(os.environ, HOME=str(heim))
+            try:
+                e = subprocess.run([sys.executable, "-I", str(einstieg)],
+                                   input=eingabe, text=True,
+                                   capture_output=True, timeout=30,
+                                   env=umgebung)
+                return e.returncode, e.stdout.strip()
+            except Exception as fehler:               # noqa: BLE001
+                return 1, f"{type(fehler).__name__}: {fehler}"
+
+        code, erste = frage("a.py")
+        if code != 0:
+            return _befund("Platzanweiser", False,
+                           f"erster Aufruf endet mit Code {code}")
+        try:
+            daten = json.loads(erste)["hookSpecificOutput"]
+        except Exception:                             # noqa: BLE001
+            return _befund("Platzanweiser", False,
+                           f"erste Antwort ist kein Hook-JSON: {erste[:120]}")
+        if daten.get("permissionDecision") != "deny":
+            return _befund("Platzanweiser", False,
+                           "haelt beim ersten Zugriff nicht an: "
+                           f"{daten.get('permissionDecision')}")
+        grund = daten.get("permissionDecisionReason", "")
+        for erwartet in ("Zweck von a", "tu_was", "wegwerfprojekt"):
+            if erwartet not in grund:
+                return _befund("Platzanweiser", False,
+                               f"die Auskunft nennt {erwartet!r} nicht")
+
+        code, zweite = frage("b.py")
+        if code != 0:
+            return _befund("Platzanweiser", False,
+                           f"zweiter Aufruf endet mit Code {code}")
+        if '"deny"' in zweite:
+            return _befund("Platzanweiser", False,
+                           "haelt zweimal an - das gehoert sich nicht")
+        if "Zweck von b" not in zweite:
+            return _befund("Platzanweiser", False,
+                           f"reicht den Eintrag nicht nach: {zweite[:120]}")
+
+        # Unsinn auf der Eingabe darf nichts kaputtmachen
+        umgebung = dict(os.environ, HOME=str(heim))
+        e = subprocess.run([sys.executable, "-I", str(einstieg)],
+                           input="kein JSON", text=True, capture_output=True,
+                           timeout=30, env=umgebung)
+        if e.returncode != 0 or e.stdout.strip():
+            return _befund("Platzanweiser", False,
+                           "kaputte Eingabe wird nicht durchgelassen")
+        return _befund("Platzanweiser", True,
+                       "haelt einmal an mit Auskunft, danach nur noch Hinweise")
+
+
 def _pruef_karte() -> dict:
     from . import pruefer
     try:
@@ -459,6 +542,7 @@ PRUEFUNGEN = (
     _pruef_geheimnisse,
     _pruef_paket,
     _pruef_installation,
+    _pruef_platzanweiser,
     _pruef_karte,
 )
 

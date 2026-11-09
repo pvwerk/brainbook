@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""Zweck: Einstiegspunkt des Platzanweisers fuer den PreToolUse-Hook.
+
+Eigener Einstieg, weil dieser Hook vor JEDEM Lesezugriff laeuft: er laedt nur
+das Waechtermodul (rund 20 ms) statt der ganzen Befehlszeile (rund 100 ms).
+
+Liest das Hook-JSON von der Standardeingabe, schreibt die Entscheidung auf die
+Standardausgabe und endet immer mit 0. Ein Fehler hier darf nie eine Sitzung
+aufhalten, deshalb wird im Zweifel durchgelassen.
+"""
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+
+def main() -> int:
+    try:
+        eingabe = json.load(sys.stdin)
+    except Exception:
+        return 0
+    try:
+        from lk import platzanweiser
+
+        entscheidung = platzanweiser.pruefen(
+            str(eingabe.get("tool_name") or ""),
+            eingabe.get("tool_input") or {},
+            kennung=str(eingabe.get("session_id") or ""),
+            ordner=str(eingabe.get("cwd") or ""))
+    except Exception:
+        return 0
+
+    if entscheidung.get("stopp"):
+        antwort = {"hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": entscheidung["grund"]}}
+    elif entscheidung.get("hinweis"):
+        antwort = {"hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "additionalContext": entscheidung["hinweis"]}}
+    else:
+        return 0
+    json.dump(antwort, sys.stdout, ensure_ascii=False)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

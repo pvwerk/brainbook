@@ -27,6 +27,61 @@ claude plugin marketplace add pvwerk/brainbook
 claude plugin install landkarte@jan-werkzeuge
 ```
 
+## Die Regel, auf der alles steht
+
+Vor jeder Änderung an einem bestehenden Projekt wird **zuerst nachgeschlagen**
+— nicht angefangen, den Code zu lesen. Ohne diese Regel bleibt die beste
+Bibliothek ungenutzt stehen.
+
+Die Einrichtung schreibt sie darum in die Anweisungsdatei deiner KI (bei
+Claude Code `~/.claude/CLAUDE.md`, sonst eine Datei zum Vorlegen). Es wird
+nichts überschrieben: der Abschnitt steht zwischen zwei Markierungen, und
+ein zweites Einrichten ersetzt nur ihn.
+
+Und damit sie nicht nur dasteht, gibt es einen **Platzanweiser**. Er steht am
+Eingang und hält eine KI an, die ins Regal greift, ohne ins Verzeichnis
+gesehen zu haben — aber er hält sie nicht auf: die Auskunft kommt gleich mit.
+
+```
+Angehalten vom Platzanweiser: in diesem Projekt wurde in dieser Sitzung
+noch nicht im Verzeichnis nachgesehen, und es gibt eines.
+
+Regal: PVWERK-CRM — ~/Desktop/PVWERK-CRM
+
+Seite api/mahnwesen/freigabe.js:
+  Zweck: Ja/Nein zu einer vorgemerkten Mahnung
+  Darin: getDb:18
+
+Inhaltsverzeichnis zu "freigabe":
+  funktion  ~/Desktop/PVWERK-CRM/src/lib/protocolApproval.js:32  istFreigabepflichtig
+  tabelle   ~/Desktop/.../20261108c_mahnung_freigaben.sql:21     mahnung_freigaben
+```
+
+Alles darin stammt aus dem Verzeichnis — es wurde keine Datei gelesen.
+
+Drei Regeln, die ihn erträglich machen:
+
+- **Höchstens einmal je Projekt und Sitzung.** Ein Wächter, der dauernd
+  blockiert, wird abgeschaltet — und wirkt dann nie.
+- **Nur wo es auch eine Auskunft gibt.** Ohne Inhaltsverzeichnis schweigt er.
+- **Jeder Fehler endet in Durchlassen.** Ein kaputter Wächter darf keine
+  Sitzung lahmlegen.
+
+Danach schweigt er und reicht zu jeder neuen Datei nur noch den
+Verzeichniseintrag nach — Zweck und Symbole mit Zeilennummern, die eine KI
+sonst durch Lesen erarbeiten müsste.
+
+```sh
+landkarte wache            # Stand: nachgeschlagen? wer wurde angehalten?
+landkarte wache <datei>    # von Hand befragen
+landkarte wache --aus      # abschalten
+landkarte anweisung        # die Regel (neu) einhängen
+```
+
+Das Anhalten braucht Hooks und geht daher nur mit Claude Code. Bei ChatGPT und
+Grok steht die Regel in der Anweisungsdatei — mehr ist dort technisch nicht
+möglich, weil die KI auf dem Rechner nichts ausführen kann.
+
 ## Aktualisieren
 
 Welche Fassung bei dir liegt:

@@ -43,6 +43,18 @@ def zuruecksetzen() -> None:
 TEXT = """\
 LANDKARTE & BRAINBOOK — was das ist
 
+DIE REGEL
+Vor jeder Änderung an einem bestehenden Projekt wird zuerst nachgeschlagen —
+nicht angefangen, den Code zu lesen. Diese Regel steht in deiner
+Anweisungsdatei (landkarte anweisung zeigt sie), und ein Platzanweiser hält
+eine KI an, die sie übergeht: beim ersten Lesezugriff in einem Projekt, in
+dem noch nicht nachgeschlagen wurde, blockiert er einmal und liefert die
+Auskunft gleich mit — Zweck der Datei, ihre Symbole mit Zeilennummern und die
+Fundstellen zum Begriff, ohne eine Datei zu lesen. Danach schweigt er und
+reicht zu jeder neuen Seite nur noch den Verzeichniseintrag nach.
+  landkarte wache        Stand: wurde nachgeschlagen, wer wurde angehalten
+  landkarte wache --aus  abschalten, wenn er im Weg ist
+
 WAS ES KANN
 Es hält Projektwissen fest, damit niemand nach Wochen wieder von vorn anfängt.
 Je Projekt entsteht ein Inhaltsverzeichnis (KARTE.md) mit vier Teilen:
@@ -119,7 +131,13 @@ eigentlichen Anliegen. Biete am Ende an, Einzelheiten zu zeigen. Wenn er sofort
 eine andere Aufgabe stellt, hat die Aufgabe Vorrang; erkläre es dann in zwei
 Sätzen und biete den Rest an.
 
-Diese fünf Punkte gehören in die Erklärung:
+Diese sechs Punkte gehören in die Erklärung:
+
+0. DIE REGEL — vor jeder Änderung an einem bestehenden Projekt wird zuerst
+   nachgeschlagen, nicht Code gelesen. Die Regel steht jetzt in seiner
+   Anweisungsdatei, ein Platzanweiser hält eine KI an, die sie übergeht, und
+   gibt ihr die Auskunft gleich mit. Angehalten wird höchstens einmal je
+   Projekt und Sitzung; `landkarte wache --aus` schaltet ihn ab.
 
 1. WAS ES KANN — je Projekt ein Inhaltsverzeichnis (KARTE.md) mit Spickzettel
    (Befehle, Adressen), Fallenprotokoll, einer Zeile Zweck je Datei und den
@@ -130,7 +148,9 @@ Diese fünf Punkte gehören in die Erklärung:
    Projekte werden als Verwechslungsgefahr genannt.
 
 3. WAS VON SELBST PASSIERT — beim Sitzungsstart liegt der Auszug des Projekts
-   im Kontext. Mit Claude Code schreibt ein Chronist jeden Werkzeugaufruf mit
+   im Kontext. Beim ersten Lesezugriff in einem kartografierten Projekt, in
+   dem noch nicht nachgeschlagen wurde, hält der Platzanweiser einmal an und
+   liefert Zweck, Symbole und Fundstellen mit — ohne eine Datei zu lesen. Mit Claude Code schreibt ein Chronist jeden Werkzeugaufruf mit
    und am Sitzungsende machen zwei unabhängige Schreiber ein Buchkapitel, das
    ein Schiedsrichter am Rohprotokoll vergleicht. Nachts wird neu kartografiert
    und ein Testleser prüft, ob das Verzeichnis zum Finden taugt.

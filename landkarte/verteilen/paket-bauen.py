@@ -39,8 +39,10 @@ MITNEHMEN = (
     "landkarte/README.md",
     "landkarte/bin/landkarte",
     "landkarte/bin/brainbook",
+    "landkarte/bin/platzanweiser",
     "landkarte/hooks/hooks.json",
     "landkarte/hooks/chronist.sh",
+    "landkarte/hooks/platzanweiser.sh",
     "landkarte/hooks/sitzungsstart.sh",
     "landkarte/hooks/sitzungsende.sh",
     "landkarte/commands/brainbook.md",
@@ -59,8 +61,10 @@ MODULE = sorted(p.relative_to(WURZEL).as_posix()
                 for p in (PLUGIN / "lk").glob("*.py"))
 
 AUSFUEHRBAR = {"landkarte/bin/landkarte", "landkarte/bin/brainbook",
+               "landkarte/bin/platzanweiser",
                "landkarte/hooks/chronist.sh", "landkarte/hooks/sitzungsstart.sh",
                "landkarte/hooks/sitzungsende.sh",
+               "landkarte/hooks/platzanweiser.sh",
                "landkarte/verteilen/einrichten.sh"}
 
 
@@ -109,6 +113,7 @@ Schalter:
     --ohne-plugin       Claude-Code-Plugin nicht einrichten
     --ohne-regal        kein erster Scan aller Projekte
     --nur-auspacken     nur entpacken, sonst nichts
+    --ohne-regel        die Regel nicht in die Anweisungsdatei schreiben
     --fassung           nur die Fassungsnummer nennen
 """
 
@@ -179,7 +184,9 @@ def auspacken(ziel: Path) -> list[Path]:
 def verknuepfen(werkzeug: Path) -> Path:
     bin_ordner = Path.home() / ".local" / "bin"
     bin_ordner.mkdir(parents=True, exist_ok=True)
-    for name in ("landkarte", "brainbook"):
+    # platzanweiser gehoert dazu: der Hook faellt darauf zurueck, wenn
+    # CLAUDE_PLUGIN_ROOT nicht gesetzt ist.
+    for name in ("landkarte", "brainbook", "platzanweiser"):
         quelle = werkzeug / "bin" / name
         ziel = bin_ordner / name
         if ziel.is_symlink() or ziel.exists():
@@ -271,7 +278,7 @@ def laufen(werkzeug: Path, *argumente: str) -> int:
 BEKANNTE_SCHALTER = {
     "--ziel", "--name", "--ki", "--ohne-plugin", "--ohne-regal",
     "--nur-auspacken", "--hilfe", "--help", "-h",
-    "--fassung", "--version", "-V",
+    "--fassung", "--version", "-V", "--ohne-regel",
 }
 
 
@@ -337,7 +344,16 @@ def main() -> int:
         argumente += ["--teilnehmer", name]
     laufen(werkzeug, *argumente)
 
-    abschnitt("4. Deine KI anbinden")
+    abschnitt("4. Die Regel setzen")
+    # Das Wichtigste am ganzen Werkzeug: vor dem Lesen von Code wird
+    # nachgeschlagen. Ohne diese Regel in der Anweisungsdatei bleibt die
+    # Bibliothek ungenutzt stehen.
+    if gesetzt("--ohne-regel"):
+        sage("Uebersprungen (--ohne-regel). Nachtraeglich: landkarte anweisung")
+    else:
+        laufen(werkzeug, "anweisung", "--ki", ki or "unbekannt")
+
+    abschnitt("5. Deine KI anbinden")
     anweisung = werkzeug / "verteilen" / "AGENTS.md"
     if fassung and not gesetzt("--ohne-plugin"):
         sage("Claude Code ist da — ich richte das Plugin mit den Hooks ein.")
@@ -375,7 +391,7 @@ def main() -> int:
             sage("  Codex, Cursor, Aider: AGENTS.md in den Projektordner legen")
 
     if not gesetzt("--ohne-regal"):
-        abschnitt("5. Erstes Verzeichnis")
+        abschnitt("6. Erstes Verzeichnis")
         sage("Das kann bei vielen Projekten einige Sekunden dauern.")
         laufen(werkzeug, "regal")
 
@@ -390,6 +406,7 @@ def main() -> int:
     abschnitt("Fertig")
     sage("Die wichtigsten Befehle:")
     sage('  landkarte wo "<begriff>"   suchen: Projekt -> Teil -> Datei:Zeile')
+    sage("  landkarte wache             Platzanweiser: Stand, --aus schaltet ab")
     sage("  landkarte zeig              Inhaltsverzeichnis des Projekts hier")
     sage('  landkarte notiz "..."       eine Falle festhalten')
     sage("  brainbook                   dein eigenes Buch")

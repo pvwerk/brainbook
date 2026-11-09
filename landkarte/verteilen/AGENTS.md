@@ -1,5 +1,38 @@
 # Anweisung für KI-Assistenten: Landkarte & Brainbook
 
+<!-- landkarte:anfang - von `landkarte anweisung` gepflegt -->
+
+## Projektgedächtnis zuerst (Priorität 1)
+
+Wenn an einem **bestehenden Projekt** etwas angepasst oder geändert werden
+soll, wird **zuerst** im Brainbook und in der Bibliothek nachgesehen, wo die
+Sache liegt. Nicht anfangen, den Code zu lesen.
+
+```sh
+landkarte wo <begriff>      # Regal → Buch → Seite, also Projekt → Teil → Datei:Zeile
+```
+
+`<begriff>` darf alles sein: das eigene Wort dafür („ETM CRM"), ein
+Dateiname, ein Funktionsname, eine Tabelle, ein Thema. Das Brainbook
+übersetzt eigene Begriffe in Projektnamen, deshalb funktioniert auch, was
+nirgends im Code steht.
+
+Erst wenn das nichts hergibt, wird gesucht und gelesen. Was dabei auffällt,
+gehört zurück in die Bibliothek — sonst muss es beim nächsten Mal wieder
+erarbeitet werden:
+
+```sh
+landkarte notiz "Falle: ..." --art falle
+landkarte merke "<mein Wort>" --ist <projektordner>
+```
+
+**Warum:** Code jedes Mal neu zu lesen kostet jedes Mal von vorn — bei einem
+gewachsenen Projekt sind das Minuten bis Stunden, und das Gelesene ist nach
+der Sitzung wieder weg. Das Verzeichnis beantwortet dieselbe Frage in
+Sekunden und wird mit jeder Nutzung genauer.
+
+<!-- landkarte:ende -->
+
 Diese Datei ist KI-neutral. Sie funktioniert für Codex, Cursor, Copilot, Aider
 und als Text, den man ChatGPT oder Grok einmal einfügt.
 

@@ -390,3 +390,30 @@ und die ausgepackte Fassung lief nicht.
 
 `--ohne-pruefung` ist der Notausgang. Wer ihn benutzt, schreibt in `--text`
 hinein, warum.
+
+## Platzanweiser
+
+Ein `PreToolUse`-Hook vor `Read`, `Grep`, `Glob`, `Edit`, `MultiEdit` und
+`NotebookEdit`. Er entscheidet dreierlei:
+
+| Lage | Entscheidung |
+|---|---|
+| kein kartografiertes Projekt, oder Wache aus | durchlassen, schweigen |
+| erster Zugriff, in dieser Sitzung noch nicht nachgeschlagen | `permissionDecision: deny` — Begründung ist die Auskunft |
+| danach, erste Berührung einer Datei aus der Karte | durchlassen, `additionalContext` mit Zweck und Symbolen |
+
+Als Nachschlagen zählt, was die KI selbst aufgerufen hat: `landkarte wo`,
+`finde`, `brainbook`, `merke`, `zeig`. **Nicht** `digest` — den legt der
+Sitzungsstart-Hook von selbst vor, und was von selbst kommt, ist kein
+Nachschlagen.
+
+Der Zustand liegt in `~/.landkarte/nachgeschlagen.json`, nach Sitzungskennung
+getrennt, und verfällt nach drei Tagen. Die Kennung kommt aus
+`CLAUDE_CODE_SESSION_ID` oder, beim Hook, aus dessen `session_id`.
+
+Eigener Einstieg `bin/platzanweiser` statt `bin/landkarte`, weil der Hook vor
+**jedem** Lesezugriff läuft: er lädt nur das Wächtermodul (rund 20 ms) statt
+der ganzen Befehlszeile (rund 100 ms).
+
+Abschalten: `landkarte wache --aus`, oder `LANDKARTE_OHNE_WACHE=1` für einen
+einzelnen Aufruf.
