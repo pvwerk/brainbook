@@ -18,6 +18,7 @@ abgelegt - nach Jans Regel wird nichts dauerhaft geloescht.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -215,6 +216,37 @@ _STARKE_MUSTER = (
 # das Bruchstueck ").replace(" aus einer Python-Zeile.
 _KEIN_WERT = re.compile(r"[$`\"'\\(){}<>\[\],;]|\*\*\*|\$\{|%[A-Z_]+%")
 
+# Beispiel- und Pruefmaterial. Diese Werte stehen in Handbuechern, in
+# Dokumentation und in den eigenen Freigabepruefungen - niemals in einem echten
+# Zugang. Beim Saeubern am 10.11.2026 wanderten sie aus dem eigenen
+# Sitzungsprotokoll als vermeintliche Geheimnisse in den Tresor, und danach
+# meldete die Pruefung "Keine Zugangsdaten" einen Treffer in der eigenen
+# Quelldatei: der Waechter hatte sich selbst vergiftet.
+#
+# Hinterlegt als Pruefsumme, nicht im Klartext. Stuende der AWS-Beispiel-
+# schluessel hier woertlich, waere diese Datei selbst wieder eine Fundstelle -
+# dieselbe Falle, nur eine Windung weiter.
+_BEISPIEL_PRUEFSUMMEN = frozenset({
+    "78314b11be2e581549ac1c4f616563fad3fdf0c3b71678f6e2299182080e0598",
+    "1a5d44a2dca19669d72edf4c4f1c27c4c1ca4b4408fbb17f6ce4ad452d78ddb3",
+    "f8c9bd3734300f0c06d7f4567eb8086ffd30321d0a25dfbae34ee96076f27c74",
+    "28d6f401550c39c70bc99aed6c29d7092ba1e58d5b50c52a7d7d94d301284af3",
+})
+
+
+def _ist_beispiel(wert: str) -> bool:
+    """Steht dieser Wert als Beispiel in einer Anleitung?"""
+    if hashlib.sha256(wert.encode("utf-8")).hexdigest() in _BEISPIEL_PRUEFSUMMEN:
+        return True
+    klein = wert.lower()
+    if "example" in klein or "beispiel" in klein or "platzhalter" in klein:
+        return True
+    # Sich wiederholende Bausteine wie AaBbCcDdAaBbCcDd sind von Hand gebaut.
+    for n in (4, 6, 8):
+        if len(wert) >= n * 3 and wert[:n] * (len(wert) // n) == wert[:len(wert) // n * n]:
+            return True
+    return False
+
 
 def _aus_starken(text: str) -> set[str]:
     gefunden: set[str] = set()
@@ -236,6 +268,8 @@ def _aus_starken(text: str) -> set[str]:
             # "env.example" ein, die nur zufaellig hinter einem '=' standen.
             if not any(z.isdigit() for z in wert) and len(wert) < 20:
                 continue
+            if _ist_beispiel(wert):
+                continue
             gefunden.add(wert)
     return gefunden
 
@@ -252,7 +286,7 @@ def finden(text: str, streng: bool = False) -> list[str]:
     if streng:
         return sorted(stark, key=len, reverse=True)
     schwach = {w for w in (schwaerzen._aus_text_ziehen(text) | _aus_saetzen(text))
-               if _ist_echtes_geheimnis(w)}
+               if _ist_echtes_geheimnis(w) and not _ist_beispiel(w)}
     kandidaten = stark | schwach
     # Teilstuecke entfernen: steht "abc123" in "abc123xyz", reicht das laengere.
     aus = []
@@ -319,6 +353,37 @@ def _sicherungskopie(datei: Path) -> Path:
     shutil.copy2(datei, ziel)
     os.chmod(ziel, 0o600)
     return ziel
+
+
+# Ab dieser Laenge darf ein bekannter Tresorwert blind im Protokoll ersetzt
+# werden. Darunter ist die Verwechslungsgefahr groesser als der Nutzen: ein
+# fuenfstelliges Passwort wie "12345" steht in einem Protokoll hundertfach als
+# ganz gewoehnliche Zahl.
+MINDESTLAENGE_ERSETZEN = 8
+MINDESTLAENGE_EINFOERMIG = 16
+
+
+def blind_ersetzbar(wert: str) -> bool:
+    """Darf dieser Wert ueberall im Protokoll ersetzt werden?
+
+    Entscheidend ist nicht nur die Laenge, sondern die Form. Reine Ziffern
+    kommen in jedem Protokoll als Dateizahl, Groesse oder Zeitstempel vor;
+    ein Wort aus lauter Kleinbuchstaben kann ein ganz normales Wort sein.
+    Gemischte Zeichenklassen dagegen treffen praktisch nie zufaellig zu.
+    """
+    if len(wert) < MINDESTLAENGE_ERSETZEN:
+        return False
+    if wert.isdigit():
+        return False
+    klassen = sum((
+        any(z.islower() for z in wert),
+        any(z.isupper() for z in wert),
+        any(z.isdigit() for z in wert),
+        any(not z.isalnum() for z in wert),
+    ))
+    if klassen < 2:
+        return len(wert) >= MINDESTLAENGE_EINFOERMIG
+    return True
 
 
 def verlauf_saeubern(datei: Path, paare: list[tuple[str, str]],
@@ -406,7 +471,8 @@ def protokoll(grenze: int = 20) -> list[dict]:
 
 
 def datei_pruefen(datei: Path, quelle: str = "", trocken: bool = False,
-                  auch_laufende: bool = False, grenze_mb: int = 0) -> dict:
+                  auch_laufende: bool = False, grenze_mb: int = 0,
+                  nur: str = "") -> dict:
     """Eine Protokolldatei durchgehen: aufnehmen und ersetzen.
 
     Die **laufende** Sitzung wird beim Rundgang ausgelassen. Dort schreibt
@@ -435,6 +501,12 @@ def datei_pruefen(datei: Path, quelle: str = "", trocken: bool = False,
                    if e.get("geheimnis")}
     except tresor.TresorFehler:
         bekannt = {}
+    uebergangen = sorted({name for wert, name in bekannt.items()
+                          if not blind_ersetzbar(wert)})
+    bekannt = {wert: name for wert, name in bekannt.items()
+               if blind_ersetzbar(wert)}
+    if nur:
+        bekannt = {wert: name for wert, name in bekannt.items() if name == nur}
 
     treffer: dict[str, str] = {}
     gesehen_bekannt: dict[str, str] = {}
@@ -443,6 +515,12 @@ def datei_pruefen(datei: Path, quelle: str = "", trocken: bool = False,
             for wert, name in bekannt.items():
                 if wert not in gesehen_bekannt and wert in zeile:
                     gesehen_bekannt[wert] = name
+            if nur:
+                # Ein gezielter Lauf raeumt genau ein Geheimnis weg. Er darf
+                # dabei nichts Neues aufnehmen: sonst wandert beim Saeubern
+                # das Beispielmaterial aus der eigenen Dokumentation als
+                # vermeintliches Geheimnis in den Tresor.
+                continue
             for stueck in texte_aus_zeile(zeile):
                 for wert in finden(stueck, streng=True):
                     if wert not in treffer:
@@ -468,9 +546,12 @@ def datei_pruefen(datei: Path, quelle: str = "", trocken: bool = False,
         if wert not in schon:
             alle.append((name, wert))
 
+    if nur:
+        alle = [(n, w) for n, w in alle if n == nur]
     ergebnis = verlauf_saeubern(datei, alle, trocken=trocken)
     ergebnis["gefunden"] = len(paare)
     ergebnis["namen"] = sorted({n for n, _ in paare})
+    ergebnis["zu_kurz_zum_ersetzen"] = uebergangen
     return ergebnis
 
 

@@ -682,11 +682,17 @@ def _pruef_tresorwache() -> dict:
     # Die Probewerte werden zusammengesetzt und nicht hingeschrieben: sonst
     # stehen hier Zeichenfolgen, die wie echte Schluessel aussehen - und die
     # Pruefung "Keine Zugangsdaten" schlaegt zu Recht auf die eigene Datei an.
-    probe_api = "sk-" + "ant-api03-" + ("AaBbCcDd" * 4)
-    probe_aws = "wJalrXUtnFEMI" + "/K7MDENG/" + "bPxRfiCYEXAMPLEKEY"
+    # Zusammengesetzt, damit kein Pruefwert woertlich im Quelltext steht - sonst
+    # meldet die Pruefung "Keine Zugangsdaten" einen Treffer in dieser Datei,
+    # sobald derselbe Wert einmal im Tresor gelandet ist. Und bewusst keine
+    # Werte aus Handbuechern: die verwirft der Waechter seit 10.11.2026 als
+    # Beispielmaterial.
+    probe_api = "sk-" + "ant-api03-" + "Xk92mQp7" + "Lv4nRt8s" + "Wy3bZc6f"
+    probe_aws = "qT7mKd2" + "/R4xVbN9/" + "uE6zPj3wHc8LsAy5Gf1"
+    probe_db = "Zw7-kxQ" + "2nRf"
     muss_finden = {
         f"ANTHROPIC_API_KEY={probe_api}": probe_api,
-        "postgresql://postgres:Ge-heim!99@db.example.com:5432/x": "Ge-heim!99",
+        f"postgresql://postgres:{probe_db}@db.intern.lan:5432/x": probe_db,
         f"AWS_SECRET_ACCESS_KEY={probe_aws}": probe_aws,
     }
     for text, erwartet in muss_finden.items():
@@ -726,7 +732,7 @@ def _pruef_verlauf_bleibt_heil() -> dict:
     with tempfile.TemporaryDirectory(prefix="landkarte-verlauf-") as ordner:
         o = Path(ordner)
         datei = o / "probe.jsonl"
-        geheim = "Ge-heim!99"
+        geheim = "Zw7-kxQ" + "2nRf"
         zeilen = [
             {"type": "user", "message": {"role": "user",
              "content": f"Zugang psql postgresql://u:{geheim}@h/db und sonst nichts"}},

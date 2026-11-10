@@ -1173,13 +1173,16 @@ def befehl_tresor(args) -> int:
                 return 0
             gesamt = 0
             geaendert = 0
+            uebergangen: set[str] = set()
             for datei in dateien:
                 e = _tresorwache.datei_pruefen(datei, trocken=args.trocken,
-                                               auch_laufende=args.auch_laufende)
+                                               auch_laufende=args.auch_laufende,
+                                               nur=args.nur or "")
                 if e.get("uebersprungen"):
                     print(f"  {datei.name}: ausgelassen ({e['uebersprungen']}) – "
                           f"die Tresorwache räumt dort laufend auf")
                     continue
+                uebergangen.update(e.get("zu_kurz_zum_ersetzen") or ())
                 if e.get("ersetzt"):
                     gesamt += e["ersetzt"]
                     geaendert += 1
@@ -1187,6 +1190,14 @@ def befehl_tresor(args) -> int:
                           + (" (Probe)" if args.trocken else ""))
             print(f"\n{len(dateien)} Protokoll(e) geprueft, {geaendert} geaendert, "
                   f"{gesamt} Vorkommen ersetzt.")
+            if uebergangen:
+                print("\nZu kurz oder zu einfoermig zum blinden Ersetzen, "
+                      "deshalb im Verlauf gelassen:")
+                for n in sorted(uebergangen):
+                    print(f"  {n}")
+                print("Ein fuenfstelliges Passwort steht in einem Protokoll auch "
+                      "als gewoehnliche Zahl – wer es blind ersetzt, zerschreibt "
+                      "den Verlauf.")
             if args.trocken:
                 print("Das war eine Probe - es wurde nichts geschrieben.")
             return 0
@@ -1645,6 +1656,7 @@ def zerleger() -> argparse.ArgumentParser:
     x.add_argument("--trocken", action="store_true", help="nur zeigen, nichts aendern")
     x.add_argument("--auch-laufende", action="store_true",
                    help="auch die gerade laufende Sitzung anfassen (riskant)")
+    x.add_argument("--nur", help="nur dieses eine Geheimnis ersetzen (Tresorname)")
     ut.add_parser("protokoll", help="was die Tresorwache bisher ersetzt hat")
     s.set_defaults(fn=befehl_tresor)
 
