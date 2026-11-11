@@ -11,7 +11,7 @@ import time
 from datetime import date, datetime
 from pathlib import Path
 
-from . import aufseher, brainbook, buch, chronik, digest, karte, konfig
+from . import aufseher, brainbook, buch, chronik, digest, geteilt, karte, konfig
 from . import freigabe as _freigabe
 from . import platzanweiser
 from . import tresor as _tresor
@@ -302,6 +302,21 @@ def befehl_wo(args) -> int:
         for eintrag in aus_brainbook[:3]:
             for zeile in brainbook.ausgeben(eintrag):
                 print("  " + zeile)
+        print()
+
+    # Dann die Staende der anderen. Getrennt ausgewiesen, weil fremdes Wissen
+    # aus einem anderen Projekt oder einem aelteren Stand stammen kann - wer
+    # es benutzt, soll sehen, von wem es ist.
+    fremd = geteilt.nachschlagen(args.begriff)
+    if fremd:
+        print("AUS FREMDEN BRAINBOOKS")
+        for e in fremd[:4]:
+            kopf = f"  [{e['teilnehmer']}]"
+            if e["abschnitt"]:
+                kopf += f" {e['abschnitt']}:"
+            print(f"{kopf} {e['text'][:170]}")
+        if len(fremd) > 4:
+            print(f"  ... und {len(fremd) - 4} weitere")
         print()
 
     nach_name = regalwart.regal_finden(args.begriff, hier=hier)

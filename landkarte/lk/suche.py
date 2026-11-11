@@ -6,7 +6,7 @@ import json
 import re
 from pathlib import Path
 
-from . import buch, konfig, notizen
+from . import buch, geteilt, konfig, notizen
 
 
 def _projekte_laden() -> list[dict]:
@@ -76,12 +76,14 @@ def finden(begriff: str, projekt: str | None = None,
                 treffer.append({"punkte": 65, "art": "Befehl", "projekt": name,
                                 "ort": wurzel, "text": f"{b['wie']}  ({b['was']})"})
         for eintrag in pr.get("schlagworte", []):
-            for begriff in eintrag.get("begriffe", []):
-                if muster.search(begriff) or genau.search(begriff):
+            # Nicht `begriff` als Laufvariable - das ist der Suchbegriff
+            # dieser Funktion und waere danach ueberschrieben.
+            for schlagwort in eintrag.get("begriffe", []):
+                if muster.search(schlagwort) or genau.search(schlagwort):
                     treffer.append({"punkte": 78, "art": "Schlagwort",
                                     "projekt": name,
                                     "ort": eintrag["kapitel_pfad"],
-                                    "text": f"{begriff} → "
+                                    "text": f"{schlagwort} → "
                                             f"{eintrag['kapiteldatei']}"})
         for a in pr.get("adressen", []):
             if muster.search(a):
@@ -109,6 +111,18 @@ def finden(begriff: str, projekt: str | None = None,
                             treffer.append({"punkte": 82, "art": art,
                                             "projekt": name, "ort": k["pfad"],
                                             "text": eintrag})
+
+    # Die Staende der anderen mitlesen. Etwas niedriger bewertet als eigene
+    # Fallen (82): fremdes Wissen kann aus einem anderen Projekt oder einem
+    # aelteren Stand stammen. Der Name dessen, von dem es kommt, steht im
+    # Projektfeld - fremdes wird nie als eigenes ausgegeben.
+    for e in geteilt.nachschlagen(begriff):
+        treffer.append({"punkte": 76,
+                        "art": e["quelle"],
+                        "projekt": f"Brainbook von {e['teilnehmer']}",
+                        "ort": e["ort"],
+                        "text": (f"{e['abschnitt']}: {e['text']}"
+                                 if e["abschnitt"] else e["text"])})
 
     gesehen = set()
     eindeutig = []
