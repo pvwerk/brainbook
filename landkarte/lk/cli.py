@@ -17,6 +17,7 @@ from . import platzanweiser
 from . import tresor as _tresor
 from . import tresorwache as _tresorwache
 from . import aufgaben as _aufgaben
+from . import abgleich as _abgleich
 from . import mindmap, notizen
 from . import korrektur, nachtrag, pruefer, regalwart, register, scan
 from . import schwaerzen as _schw
@@ -1230,8 +1231,18 @@ def befehl_aufgaben(args) -> int:
         return 0
     if unter == "erledigt":
         ok = _aufgaben.erledigen(args.id)
-        print("Als erledigt vermerkt." if ok else "Keine offene Aufgabe mit dieser Kennung.")
-        return 0 if ok else 1
+        if ok:
+            print("Als erledigt vermerkt.")
+            return 0
+        # Fremde Punkte kann nur der Rechner abhaken, auf dem sie stehen -
+        # sonst waere der naechste Abgleich wieder da, wo er vorher war.
+        fremd = next((a for a in _aufgaben.fremde() if a.id == args.id), None)
+        if fremd:
+            print(f"Dieser Punkt kommt von {fremd.teilnehmer} und kann nur dort "
+                  "abgehakt werden.")
+        else:
+            print("Keine offene Aufgabe mit dieser Kennung.")
+        return 1
     if args.markdown:
         ziel = konfig.LK_HEIM / "offene-punkte.md"
         text = _aufgaben.als_markdown(args.projekt)
@@ -1241,6 +1252,40 @@ def befehl_aufgaben(args) -> int:
         return 0
     print(_aufgaben.bericht(args.projekt, grenze=args.grenze or 0))
     return 0
+
+
+def befehl_abgleich(args) -> int:
+    """Wissen mit anderen Brainbooks austauschen - nur auf Zuruf.
+
+    Ohne hinterlegtes Repo tut dieser Befehl nichts. Das ist Absicht: wer
+    Brainbook benutzt, wird dadurch mit niemandem verbunden.
+    """
+    try:
+        if args.repo:
+            print(_abgleich.hinterlegen(args.repo, args.zweig or "main"))
+            print()
+            print(_abgleich.stand())
+            return 0
+        if args.aus:
+            print(_abgleich.loesen())
+            return 0
+        if args.probe:
+            print(_abgleich.senden(trocken=True))
+            return 0
+        if args.jetzt or args.senden or args.holen:
+            if args.jetzt or args.senden:
+                ergebnis = _abgleich.senden()
+                print(ergebnis)
+                if ergebnis.startswith("ABGEBROCHEN"):
+                    return 2
+            if args.jetzt or args.holen:
+                print(_abgleich.holen())
+            return 0
+        print(_abgleich.stand())
+        return 0
+    except Exception as e:
+        print(f"Abgleich nicht moeglich: {e}")
+        return 1
 
 
 def befehl_wache(args) -> int:
@@ -1674,6 +1719,18 @@ def zerleger() -> argparse.ArgumentParser:
     x = ua.add_parser("erledigt", help="einen eingetragenen Punkt abhaken")
     x.add_argument("id")
     s.set_defaults(fn=befehl_aufgaben)
+
+    s = u.add_parser("abgleich", aliases=["gemeinsam"],
+                     help="Wissen mit anderen Brainbooks austauschen (freiwillig)")
+    s.add_argument("--repo", help="Git-URL als gemeinsamen Ort hinterlegen")
+    s.add_argument("--zweig", help="Zweig im Repo (Vorgabe main)")
+    s.add_argument("--aus", action="store_true", help="Verknuepfung wieder loesen")
+    s.add_argument("--jetzt", action="store_true", help="senden und holen")
+    s.add_argument("--senden", action="store_true", help="nur senden")
+    s.add_argument("--holen", action="store_true", help="nur holen")
+    s.add_argument("--probe", action="store_true",
+                   help="zeigen, was gesendet wuerde, ohne zu senden")
+    s.set_defaults(fn=befehl_abgleich)
 
     s = u.add_parser("wache", aliases=["platzanweiser"],
                      help="Platzanweiser: Stand, abschalten, von Hand pruefen")

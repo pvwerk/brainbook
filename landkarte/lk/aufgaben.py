@@ -32,6 +32,9 @@ from pathlib import Path
 from . import konfig
 
 EIGENE = konfig.LK_HEIM / "aufgaben.jsonl"
+# Von anderen Brainbooks geholt (landkarte abgleich). Fehlt die Datei, gibt es
+# keinen Abgleich - dann bleibt es bei den eigenen Punkten.
+FREMDE = konfig.LK_HEIM / "geteilt" / "aufgaben.jsonl"
 
 # Dateien, in denen offene Punkte stehen duerfen. Alles andere waere Rauschen:
 # ein TODO mitten im Code ist eine Notiz an den naechsten Leser, keine Aufgabe.
@@ -77,6 +80,7 @@ class Aufgabe:
     angelegt: int = 0
     id: str = ""
     erledigt_am: int = 0
+    teilnehmer: str = ""       # gesetzt, wenn der Punkt von einem anderen kommt
 
     def kurz(self) -> str:
         t = " ".join(self.text.split())
@@ -238,11 +242,34 @@ def eigene(auch_erledigte: bool = False) -> list[Aufgabe]:
     return aus
 
 
+def fremde() -> list[Aufgabe]:
+    """Offene Punkte der anderen Brainbooks - nur lesen, nie abhaken.
+
+    Erledigen kann sie nur der Rechner, auf dem sie eingetragen wurden.
+    """
+    if not FREMDE.exists():
+        return []
+    aus = []
+    for z in FREMDE.read_text("utf-8", errors="replace").splitlines():
+        z = z.strip()
+        if not z:
+            continue
+        try:
+            e = json.loads(z)
+        except ValueError:
+            continue
+        if e.get("erledigt_am"):
+            continue
+        aus.append(Aufgabe(**{k: v for k, v in e.items()
+                              if k in Aufgabe.__dataclass_fields__}))
+    return aus
+
+
 # --------------------------------------------------------------- Zusammen
 
 
 def alle(nur_projekt: str | None = None) -> list[Aufgabe]:
-    zusammen = eigene() + ernten(nur_projekt)
+    zusammen = eigene() + fremde() + ernten(nur_projekt)
     if nur_projekt:
         zusammen = [a for a in zusammen if a.projekt == nur_projekt or not a.projekt]
     # Dringliches zuerst, dann Eingetragenes vor Geerntetem, dann nach Projekt.
@@ -267,8 +294,11 @@ def bericht(nur_projekt: str | None = None, grenze: int = 0) -> str:
             zeilen.append(f"[{kopf}]")
             letztes = kopf
         marke = "!" if a.dringlich else " "
-        herkunft = (f"{a.quelle}:{a.zeile}" if a.art == "geerntet"
-                    else f"eingetragen {a.id}")
+        if a.teilnehmer:
+            herkunft = f"von {a.teilnehmer} · {a.id}"
+        else:
+            herkunft = (f"{a.quelle}:{a.zeile}" if a.art == "geerntet"
+                        else f"eingetragen {a.id}")
         zeilen.append(f"  {marke} {a.kurz()}")
         zeilen.append(f"      {herkunft}")
         gezeigt += 1

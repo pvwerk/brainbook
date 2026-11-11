@@ -43,6 +43,11 @@ STANDARD = {
     "statistik": True,
     "teilnehmer": "",
     "ki": "unbekannt",
+    # Gemeinsamer Ort fuer den Wissensaustausch mehrerer Brainbooks.
+    # Leer = nicht angeschlossen, und so bleibt es, bis jemand ausdruecklich
+    # `landkarte abgleich --repo <URL>` aufruft. Niemand wird von selbst
+    # verbunden.
+    "abgleich": {"repo": "", "zweig": "main", "zuletzt": 0},
     # Wie ein Sprachmodell gerufen wird. {modell} wird ersetzt. So laeuft das
     # Werkzeug auch mit codex, llm, ollama oder einem eigenen Skript.
     "modell_befehl": [
