@@ -6,6 +6,16 @@ Entwickelt wird im Original auf dem Mac; nach GitHub geht nur, was
 `landkarte freigabe --pruefen` bestanden hat. Wer eine Fassung installiert hat,
 sieht sie mit `landkarte --fassung`.
 
+## 2.1.0 — 2026-11-11
+
+Abgleich: Wissen zwischen mehreren Brainbooks austauschen - freiwillig, von Hand, nur Notizen, Brainbook und offene Punkte. Dazu zwei Korrekturen: die Freigabepruefung meldete einfoermige Tresorwerte als Fehlalarm, und eine fremde Arbeitskopie wird jetzt beiseitegelegt statt geloescht.
+
+- Abgleich: eine fremde Arbeitskopie wird beiseitegelegt, nicht geloescht
+- Freigabepruefung: einfoermige Geheimnisse nur an Wortgrenzen suchen
+- Abgleich: Wissen zwischen mehreren Brainbooks austauschen
+- Tresorwache: kurze Geheimnisse und Beispielmaterial nicht mehr blind ersetzen
+- Notizen zu Tresor und Erkennung
+
 ## 2.0.0 — 2026-11-09
 
 Passwort-Tresor, Tresorwache und Verzeichnis der offenen Punkte
