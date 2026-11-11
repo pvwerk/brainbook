@@ -121,7 +121,13 @@ def hinterlegen(repo: str, zweig: str = "main") -> str:
     else:
         ARBEIT.parent.mkdir(parents=True, exist_ok=True)
         if ARBEIT.exists():
-            shutil.rmtree(ARBEIT)
+            # Liegt dort etwas, das kein Git-Repo ist, wird es nicht geloescht,
+            # sondern beiseitegelegt. Nichts dauerhaft entfernen, was jemand
+            # vielleicht noch braucht.
+            beiseite = (Path.home() / ".Papierkorb-Claude" /
+                        f"landkarte-abgleich-{int(time.time())}")
+            beiseite.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(ARBEIT), str(beiseite))
         p = subprocess.run(["git", "clone", "--depth", "50", "-q", repo, str(ARBEIT)],
                            capture_output=True, timeout=300)
         if p.returncode != 0:
