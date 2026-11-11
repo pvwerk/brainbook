@@ -303,11 +303,30 @@ def _pruef_hilfe() -> dict:
 
 def _pruef_geheimnisse() -> dict:
     """Das Repository ist oeffentlich. Hier darf nichts Vertrauliches liegen."""
-    from . import pruefer, schwaerzen
+    from . import pruefer, schwaerzen, tresorwache
     code, aus = _git("ls-files")
     if code != 0:
         return _befund("Keine Zugangsdaten", False, aus)
-    woertlich = schwaerzen.bekannte_geheimnisse()
+    # Bekannte Geheimnisse werden nach ihrer Form unterschiedlich gesucht.
+    # Ein Wert, der durch seine Form eindeutig ist (gemischte Zeichenklassen,
+    # ausreichend lang), wird ueberall im Text gesucht. Ein einfoermiger Wert -
+    # etwa eine kurze Zahlenfolge - steckt dagegen zufaellig in jeder langen
+    # Ziffernfolge im Quelltext, zum Beispiel in einer aufsteigenden
+    # Ziffernkette in einem lstrip(). Fuer solche Werte wird auf Wortgrenzen
+    # bestanden. Sonst meldet die Pruefung staendig Fehlalarme - und dann liest
+    # sie irgendwann niemand mehr.
+    #
+    # Aus demselben Grund steht hier kein Beispielwert: ein Kommentar, der die
+    # Form nachstellt, loest die Pruefung selbst aus.
+    woertlich = []
+    for geheim in schwaerzen.bekannte_geheimnisse():
+        if not geheim:
+            continue
+        if tresorwache.blind_ersetzbar(geheim):
+            woertlich.append((geheim, None))
+        else:
+            woertlich.append((geheim, re.compile(r"(?<!\w)" + re.escape(geheim)
+                                                 + r"(?!\w)")))
     treffer = []
     for rel in aus.splitlines():
         datei = WURZEL / rel
@@ -321,8 +340,10 @@ def _pruef_geheimnisse() -> dict:
         # die Quellen selbst, sonst meldet der base64-Block nur Rauschen.
         nur_woertlich = rel.endswith("brainbook-einrichten.py")
         for nummer, zeile in enumerate(text.splitlines(), 1):
-            for geheim in woertlich:
-                if geheim and geheim in zeile:
+            for geheim, muster in woertlich:
+                gefunden = (muster.search(zeile) if muster
+                            else geheim in zeile)
+                if gefunden:
                     treffer.append(f"{rel}:{nummer} bekanntes Geheimnis")
                     break
             else:
